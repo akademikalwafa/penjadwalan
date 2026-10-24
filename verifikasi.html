@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Verifikasi Dokumen — PENJADWALAN AL WAFA</title>
+  <meta name="description" content="Periksa keaslian dokumen resmi Sekolah Tinggi Ilmu Syariah Al Wafa melalui kode QR verifikasi.">
+  <meta name="theme-color" content="#1E3A8A">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=1.0.0">
+  <script>try { var t = localStorage.getItem('pa:tema'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}</script>
+  <style>
+    body { background: var(--bg); min-height: 100vh; }
+    .vf-wrap { max-width: 720px; margin: 0 auto; padding: 28px 16px 60px; }
+    .vf-head { display: flex; gap: 14px; align-items: center; margin-bottom: 22px; }
+    .vf-head .lg { width: 54px; height: 54px; flex: none; border-radius: 15px; overflow: hidden; }
+    .vf-head h1 { font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+    .vf-head p { color: var(--text-2); font-size: 13.5px; }
+    .vf-form { display: flex; gap: 10px; flex-wrap: wrap; }
+    .vf-form .input { flex: 1 1 260px; font-family: ui-monospace, Menlo, monospace; text-transform: uppercase; letter-spacing: .04em; height: 46px; font-size: 15px; }
+    .vf-form .btn { height: 46px; padding: 0 22px; }
+    .vf-status { display: flex; gap: 16px; align-items: center; padding: 22px; border-radius: 16px; margin-bottom: 16px; }
+    .vf-status .bulat { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+    .vf-status .bulat svg { width: 34px; height: 34px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .vf-status h2 { font-size: 22px; font-weight: 800; }
+    .vf-status.sah { background: var(--ok-bg); border: 1px solid var(--ok-br); } .vf-status.sah .bulat { background: #16A34A; color: #fff; }
+    .vf-status.tarik { background: var(--err-bg); border: 1px solid var(--err-br); } .vf-status.tarik .bulat { background: #DC2626; color: #fff; }
+    .vf-status.tidak { background: var(--warn-bg); border: 1px solid var(--warn-br); } .vf-status.tidak .bulat { background: #B45309; color: #fff; }
+    .vf-dl { display: grid; grid-template-columns: minmax(120px, 34%) 1fr; }
+    .vf-dl > div { padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .vf-dl > div:nth-child(odd) { color: var(--text-2); font-weight: 600; font-size: 13px; }
+    .vf-dl > div:nth-last-child(-n+2) { border-bottom: 0; }
+    .vf-hash { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; word-break: break-all; }
+    .vf-drop { border: 2px dashed var(--border-2); border-radius: 14px; padding: 18px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+    .vf-drop:hover, .vf-drop.on { border-color: var(--primary); background: var(--primary-50); }
+    .vf-foot { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 26px; }
+    @media (max-width: 560px) { .vf-dl { grid-template-columns: 1fr; } .vf-dl > div:nth-child(odd) { padding-bottom: 0; border-bottom: 0; } .vf-status { flex-direction: column; text-align: center; } }
+  </style>
+</head>
+<body>
+  <main class="vf-wrap">
+    <div class="vf-head">
+      <div class="lg" id="vf-logo"></div>
+      <div><h1>Verifikasi Dokumen Resmi</h1><p id="vf-inst">Sekolah Tinggi Ilmu Syariah Al Wafa · PENJADWALAN AL WAFA</p></div>
+    </div>
+
+    <div class="card card-b" style="margin-bottom:16px">
+      <form class="vf-form" id="vf-form" autocomplete="off">
+        <label class="sr-only" for="vf-kode">Kode verifikasi</label>
+        <input class="input" id="vf-kode" maxlength="40" placeholder="Kode pada dokumen, mis. ST-ABCD234EFG" spellcheck="false" required>
+        <button class="btn btn-primary" id="vf-btn" type="submit">Periksa</button>
+      </form>
+      <p class="help" style="margin-top:8px">Pindai QR pada dokumen atau ketik kode verifikasi yang tercetak di bawah QR.</p>
+    </div>
+
+    <div id="vf-hasil" aria-live="polite"></div>
+
+    <p class="vf-foot">Halaman ini hanya menampilkan ringkasan dokumen yang terdaftar.<br>Data pribadi seperti nomor WhatsApp tidak pernah ditampilkan.</p>
+  </main>
+
+  <script src="js/config.js?v=1.0.0"></script>
+  <script>
+  'use strict';
+  (function () {
+    var $ = function (s) { return document.querySelector(s); };
+    var esc = function (s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+    var IK = {
+      ok: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>', q: '<circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>'
+    };
+    var BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    var JENIS = { SURAT_TUGAS: 'Surat Tugas Mengajar', JADWAL_KELAS: 'Jadwal Perkuliahan Kelas', JADWAL_DOSEN: 'Jadwal Mengajar Dosen', JADWAL_SELURUH: 'Seluruh Jadwal Perkuliahan', UJIAN: 'Jadwal Ujian', ABSENSI: 'Absensi Mahasiswa', DAFTAR_HADIR: 'Daftar Hadir', PENERIMA_KITAB: 'Absensi Penerima Kitab', KALENDER: 'Kalender Akademik', TEMPLATE: 'Dokumen Template', DOKUMEN: 'Dokumen' };
+    var LABEL = { dosen: 'Nama dosen', nidn: 'NIDN', prodi: 'Program studi', kelas: 'Kelas', semester: 'Semester', rombel_label: 'Rombongan belajar', kegiatan: 'Kegiatan', tanggal: 'Tanggal', jumlah: 'Jumlah', pola: 'Pola jam', jenis_ujian: 'Jenis ujian', template: 'Template' };
+    var LOGO = '<svg viewBox="0 0 64 64" width="100%" height="100%" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#1E3A8A"/><path d="M14 22c6-3 12-3 18 1v24c-6-4-12-4-18-1z" fill="#fff"/><path d="M50 22c-6-3-12-3-18 1v24c6-4 12-4 18-1z" fill="#DCE4F7"/><path d="M32 12l4 6h-8z" fill="#F97316"/><circle cx="32" cy="10" r="2.2" fill="#F97316"/></svg>';
+    $('#vf-logo').innerHTML = LOGO;
+    var url = (window.APP_CONFIG && window.APP_CONFIG.GAS_URL) || '', siap = /^https:\/\//.test(url) && !/GANTI|XXXX/.test(url), data = null;
+
+    function ikon(n) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + IK[n] + '</svg>'; }
+    function tglId(s) { if (!s) return '—'; var p = String(s).split('T'), d = p[0].split('-'); if (d.length < 3) return esc(s); var j = (p[1] || '').slice(0, 5).replace(':', '.'); return +d[2] + ' ' + BULAN[+d[1] - 1] + ' ' + d[0] + (j ? ', ' + j + ' WIB' : ''); }
+    function perLabel(k) { var p = String(k || '').split(' '); return p.length === 2 ? p[1] + ' ' + p[0] : esc(k); }
+
+    async function periksa(kode) {
+      kode = String(kode || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 40);
+      var hasil = $('#vf-hasil');
+      if (kode.length < 8) { hasil.innerHTML = '<div class="alert warn"><div>Kode verifikasi terlalu pendek. Periksa kembali kode pada dokumen.</div></div>'; return; }
+      if (!siap) { hasil.innerHTML = '<div class="alert err"><div>Halaman verifikasi belum dikonfigurasi (GAS_URL di js/config.js).</div></div>'; return; }
+      var btn = $('#vf-btn'); btn.disabled = true; btn.textContent = 'Memeriksa…';
+      hasil.innerHTML = '<div class="card"><div class="empty"><div class="spin"></div><div>Memeriksa ke server…</div></div></div>';
+      var r;
+      try {
+        var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'verif.cek', data: { kode: kode } }), redirect: 'follow' });
+        r = JSON.parse(await res.text());
+      } catch (e) { r = { success: false, code: 'NET', message: 'Tidak dapat terhubung ke server. Periksa koneksi internet lalu coba lagi.' }; }
+      btn.disabled = false; btn.textContent = 'Periksa';
+      try { history.replaceState(null, '', location.pathname + '?k=' + encodeURIComponent(kode)); } catch (e) {}
+      if (!r.success) {
+        data = null;
+        hasil.innerHTML = r.code === 'NET' ? '<div class="alert err"><div>' + esc(r.message) + '</div></div>' :
+          '<div class="vf-status tidak"><div class="bulat">' + ikon('q') + '</div><div><h2>Tidak terdaftar</h2><p>' + esc(r.message) + '</p><p class="muted" style="margin-top:6px;font-size:13px">Bila dokumen ini Anda terima sebagai dokumen resmi, hubungi Bagian Administrasi Akademik untuk konfirmasi.</p></div></div>';
+        return;
+      }
+      data = r.data;
+      var d = r.data, tarik = d.status === 'DITARIK';
+      if (d.instansi) $('#vf-inst').textContent = d.instansi + ' · ' + (d.aplikasi || 'PENJADWALAN AL WAFA');
+      var baris = [['Jenis dokumen', esc(JENIS[d.jenis] || d.jenis)], ['Judul', '<b>' + esc(d.judul) + '</b>']];
+      if (d.nomor) baris.push(['Nomor', '<span class="mono">' + esc(d.nomor) + '</span>']);
+      baris.push(['Periode akademik', esc(perLabel(d.periode))], ['Diterbitkan', esc(tglId(d.dibuat))]);
+      Object.keys(d.ringkasan || {}).forEach(function (k) { if (LABEL[k] && d.ringkasan[k] !== '') baris.push([LABEL[k], esc(d.ringkasan[k])]); });
+      baris.push(['Kode verifikasi', '<span class="mono">' + esc(d.kode) + '</span>']);
+      if (d.hash) baris.push(['Sidik berkas (SHA-256)', '<span class="vf-hash">' + esc(d.hash) + '</span>']);
+      hasil.innerHTML = '<div class="vf-status ' + (tarik ? 'tarik' : 'sah') + '"><div class="bulat">' + ikon(tarik ? 'x' : 'ok') + '</div><div><h2>' + (tarik ? 'Dokumen DITARIK — tidak berlaku' : 'Dokumen SAH &amp; terdaftar') + '</h2><p>' +
+        (tarik ? 'Dokumen ini pernah diterbitkan tetapi telah ditarik oleh penerbit. Jangan gunakan sebagai dasar keputusan.' : 'Dokumen ini diterbitkan resmi oleh ' + esc(d.instansi || 'Sekolah Tinggi Ilmu Syariah Al Wafa') + ' dan tercatat di sistem.') + '</p></div></div>' +
+        '<div class="card" style="margin-bottom:16px"><div class="vf-dl">' + baris.map(function (b) { return '<div>' + b[0] + '</div><div>' + b[1] + '</div>'; }).join('') + '</div></div>' +
+        (d.hash ? '<div class="card card-b"><b>Cocokkan berkas PDF (opsional)</b><p class="muted" style="font-size:13px;margin:4px 0 12px">Pilih berkas PDF yang Anda terima. Berkas dibaca di perangkat Anda saja (tidak diunggah) dan sidiknya dibandingkan dengan catatan resmi.</p>' +
+          '<label class="vf-drop" id="vf-drop"><input type="file" id="vf-file" accept="application/pdf" hidden><span id="vf-drop-t">Klik atau seret berkas PDF ke sini</span></label><div id="vf-cocok" style="margin-top:12px"></div></div>' : '');
+      if (d.hash) pasangCocok();
+    }
+
+    function pasangCocok() {
+      var drop = $('#vf-drop'), inp = $('#vf-file');
+      inp.onchange = function () { if (inp.files[0]) cocokkan(inp.files[0]); };
+      ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('on'); }); });
+      ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('on'); }); });
+      drop.addEventListener('drop', function (e) { var f = e.dataTransfer.files[0]; if (f) cocokkan(f); });
+    }
+    async function cocokkan(f) {
+      var out = $('#vf-cocok');
+      if (!window.crypto || !crypto.subtle) { out.innerHTML = '<div class="alert warn"><div>Peramban ini tidak mendukung pemeriksaan sidik berkas.</div></div>'; return; }
+      out.innerHTML = '<span class="spin spin-sm"></span> Menghitung sidik…';
+      var buf = await f.arrayBuffer(), h = await crypto.subtle.digest('SHA-256', buf);
+      var hex = Array.prototype.map.call(new Uint8Array(h), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+      var sama = data && hex === String(data.hash).toLowerCase();
+      out.innerHTML = sama ? '<div class="alert ok"><div><b>Berkas identik dengan dokumen resmi.</b><br><span class="vf-hash">' + hex + '</span></div></div>'
+        : '<div class="alert err"><div><b>Berkas tidak identik.</b> Isi berkas berbeda dari dokumen resmi yang tercatat (mungkin sudah diubah, dicetak ulang, atau versi lain).<br><span class="vf-hash">' + hex + '</span></div></div>';
+      $('#vf-drop-t').textContent = f.name;
+    }
+
+    $('#vf-form').addEventListener('submit', function (e) { e.preventDefault(); periksa($('#vf-kode').value); });
+    var k = new URLSearchParams(location.search).get('k');
+    if (k) { $('#vf-kode').value = k; periksa(k); } else $('#vf-kode').focus();
+  })();
+  </script>
+</body>
+</html>

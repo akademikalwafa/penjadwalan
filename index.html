@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PENJADWALAN AL WAFA</title>
+  <meta name="description" content="Penjadwalan kuliah & ujian, dokumen akademik, dan Blast WA — Sekolah Tinggi Ilmu Syariah Al Wafa">
+  <meta name="theme-color" content="#1E3A8A">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://script.googleusercontent.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=1.0.0">
+  <link rel="stylesheet" href="css/cetak.css?v=1.0.0">
+  <script>
+    /* tema dipasang sebelum render agar tidak berkedip */
+    try { var t = localStorage.getItem('pa:tema'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="splash"><div class="splash-in"><div class="spin"></div><div id="splash-msg">Memuat PENJADWALAN AL WAFA…</div></div></div>
+
+  <!-- ================= LOGIN ================= -->
+  <section id="login" class="hidden" aria-label="Halaman masuk">
+    <form class="login-card" id="login-form" autocomplete="on" novalidate>
+      <div class="login-logo" id="login-logo"></div>
+      <span class="login-pill"><i></i>SISTEM INFORMASI AKADEMIK</span>
+      <h1>PENJADWALAN AL WAFA</h1>
+      <p class="sub">Sekolah Tinggi Ilmu Syariah Al Wafa</p>
+      <div class="login-field" id="lf-user"></div>
+      <div class="login-field" id="lf-pass"></div>
+      <div class="login-row">
+        <label><input type="checkbox" id="login-ingat"> Ingat Saya</label>
+        <a href="#" id="login-lupa">Lupa password?</a>
+      </div>
+      <button type="submit" class="login-btn" id="login-btn">Masuk</button>
+      <p class="login-msg" id="login-msg" role="alert"></p>
+      <div class="login-foot"><b>Butuh bantuan? Hubungi Admin Utama</b><br>Sistem Informasi Penjadwalan Kuliah &amp; Ujian © <span id="login-th">2026</span> STIS Al Wafa Bogor</div>
+    </form>
+  </section>
+
+  <!-- ================= SHELL ================= -->
+  <div id="shell" class="hidden">
+    <aside id="sidebar" aria-label="Menu utama">
+      <div class="sb-brand">
+        <div class="sb-logo" id="sb-logo"></div>
+        <div class="sb-title"><b>PENJADWALAN<br>AL WAFA</b><span>Sekolah Tinggi Ilmu Syariah Al Wafa</span></div>
+        <button class="icon-btn sb-toggle" id="sb-toggle" title="Ciutkan / buka menu" aria-label="Ciutkan menu"></button>
+      </div>
+      <nav class="sb-nav" id="sb-nav"></nav>
+      <div class="sb-foot" id="sb-foot"></div>
+    </aside>
+    <div id="scrim"></div>
+    <header id="topbar">
+      <button class="icon-btn tb-burger" id="tb-burger" aria-label="Buka menu"></button>
+      <div class="tb-per" id="tb-per"></div>
+      <div class="tb-search" id="tb-search">
+        <input id="q-global" type="search" placeholder="Cari mata kuliah, dosen, kode…" autocomplete="off" aria-label="Pencarian">
+        <kbd>/</kbd>
+        <div class="search-res hidden" id="q-res"></div>
+      </div>
+      <div class="tb-act" id="tb-act"></div>
+    </header>
+    <main id="main"></main>
+  </div>
+
+  <div id="modals"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="ctxmenu" class="hidden" role="menu"></div>
+  <div id="preview" class="hidden"></div>
+  <div id="print-stage" aria-hidden="true"></div>
+
+  <script src="js/config.js?v=1.0.0"></script>
+  <script src="js/core.js?v=1.0.0" defer></script>
+  <script src="js/shell.js?v=1.0.0" defer></script>
+  <script src="js/domain.js?v=1.0.0" defer></script>
+  <script src="js/cetak.js?v=1.0.0" defer></script>
+  <script src="js/pages-data.js?v=1.0.0" defer></script>
+  <script src="js/pages-proses.js?v=1.0.0" defer></script>
+  <script src="js/pages-cetak.js?v=1.0.0" defer></script>
+  <script src="js/pages-lain.js?v=1.0.0" defer></script>
+</body>
+</html>
