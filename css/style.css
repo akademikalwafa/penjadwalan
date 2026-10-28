@@ -615,3 +615,6 @@ details > summary { cursor: pointer; }
 @media (max-width: 760px) { .pk-mk { grid-template-columns: 22px minmax(0, 1fr) auto; } .pk-mk .mono { display: none; } }
 .pk-dsn { display: flex; flex-direction: column; gap: 4px; }
 .pk-dsn select.kosong { border-color: var(--warn-br); background-color: var(--warn-bg); }
+/* ---- v1.2: Penilaian Tahfidz ---- */
+.nt-komp { display: flex; flex-direction: column; gap: 6px; }
+.nt-lbl { font-family: 'Inter', 'Amiri', 'Noto Naskh Arabic', sans-serif; font-size: 15px; }

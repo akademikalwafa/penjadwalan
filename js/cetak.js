@@ -178,7 +178,9 @@ const Tata = {
     SURAT_TUGAS: { judul: 'Surat Tugas', kolom: [['no', 'No', 5], ['mk', 'Mata Kuliah', 31], ['sks', 'SKS', 6], ['smt', 'Smt', 6], ['prodi', 'Prodi', 19], ['program', 'Program', 14], ['jadwal', 'Jadwal', 19]],
       opsi: [['kop', 'Tampilkan kop surat', 'cek', true], ['jadwal', 'Tampilkan kolom jadwal', 'cek', true]] },
     PDDIKTI: { judul: 'Daftar MK PDDIKTI', kolom: [['no', 'No', 5], ['kode', 'Kode', 13], ['mk', 'Mata Kuliah', 36], ['sks', 'SKS PDDIKTI', 9], ['dosen', 'Dosen Pengampu', 37]],
-      opsi: [['kop', 'Tampilkan kop surat', 'cek', true], ['baris', 'Tinggi baris', 'angka', 1.7, 1.2, 4, 0.05, '× huruf'], ['rekap', 'Halaman rekap SKS dosen', 'cek', true]] }
+      opsi: [['kop', 'Tampilkan kop surat', 'cek', true], ['baris', 'Tinggi baris', 'angka', 1.7, 1.2, 4, 0.05, '× huruf'], ['rekap', 'Halaman rekap SKS dosen', 'cek', true]] },
+    NILAI_TAHFIDZ: { judul: 'Penilaian Tahfidz', kolom: [['no', 'No', 8], ['nama', 'Nama Mahasiswa', 38], ['nilai', 'Semua kolom nilai', 54]],
+      opsi: [['kop', 'Tampilkan kop surat', 'cek', true], ['baris', 'Tinggi baris', 'angka', 1.75, 1.2, 4, 0.05, '× huruf'], ['kosong', 'Baris kosong bernomor', 'angka', 2, 0, 10, 1, 'baris'], ['polos', 'Baris kosong tanpa nomor', 'angka', 2, 0, 10, 1, 'baris'], ['putus', 'Garis antarbaris putus-putus', 'cek', true], ['qr', 'QR verifikasi', 'cek', true]] }
   },
   bawaan(jenis) {
     const sp = this.SPEC[jenis], v = { kolom: {} };
@@ -191,6 +193,8 @@ const Tata = {
     [sim, ubah || {}].forEach(src => { Object.keys(src).forEach(k => { if (k === 'kolom' && src.kolom && typeof src.kolom === 'object') Object.keys(src.kolom).forEach(c => { if (c in v.kolom && num(src.kolom[c], 0) > 0) v.kolom[c] = num(src.kolom[c]); }); else if (src[k] !== null && src[k] !== undefined) v[k] = src[k]; }); });
     return v;
   },
+  /** Komponen nilai tahfidz (label boleh huruf Arab) — bawaan sesuai format kampus. */
+  komponenTahfidz(t) { const k = t && Array.isArray(t.komponen) ? t.komponen.filter(x => x && String(x.label || '').trim()) : []; return k.length ? k : [{ label: 'حفظ', bobot: 75 }, { label: 'تلاوة و تجويد', bobot: 12.5 }, { label: 'حضور', bobot: 12.5 }]; },
   ttdHadirBawaan() { return [{ jabatan: 'Kaprodi Ekonomi Syariah', nama: '' }, { jabatan: 'Kaprodi Hukum Ekonomi Syariah', nama: '' }, { jabatan: 'Puket 2 (Administrasi & Kepegawaian)', nama: '' }]; },
   /** Lebar kolom dalam persen (bobot dinormalkan ke 100%). */
   persen(t, kunci) { const tot = Object.values(t.kolom).reduce((a, b) => a + num(b, 0), 0) || 1; return (num(t.kolom[kunci], 0) / tot * 100); },
@@ -543,6 +547,34 @@ const Doc = {
     }
     return { judul: 'PDDIKTI ' + Dom.perLabel(perKey), nama: 'Daftar MK PDDIKTI — ' + Dom.perLabel(perKey).replace('/', '-'), halaman,
       dok: { kode, jenis: 'PDDIKTI', judul: 'Daftar Mata Kuliah PDDIKTI ' + Dom.perLabel(perKey), ringkasan: { prodi: prodi.map(x => x.Kode).join(', '), jumlah: baris.length + ' MK' } } };
+  },
+
+  /* ---------- Penilaian Tahfidz (v1.2): per prodi · angkatan, filter jenis kelamin ---------- */
+  /** lb: {prodi, angkatan, smt, mhs:[{Nama}], dosen:'teks'} · f: {ujian:'UTS'|'UAS'} */
+  nilaiTahfidz(lb, perKey, f, ctx) {
+    const t = this.tata('NILAI_TAHFIDZ', ctx), p = Dom.perObj(perKey), kode = (ctx && ctx.kode) || Cetak.kode('NTH');
+    const komp = Tata.komponenTahfidz(t), total = komp.reduce((a, k) => a + num(k.bobot, 0), 0), nK = komp.length + 1;
+    const ujian = f.ujian === 'UAS' ? 'UAS' : 'UTS', pj = Object.assign({ jabatan: 'PJ Alquran', nama: '' }, t.pj || {});
+    const judulMK = String(t.judulMK || 'Tahfidz Al Quran').trim() || 'Tahfidz Al Quran', labelTotal = String(t.labelTotal || 'مجموع');
+    const w = this.lebar(t, ['no', 'nama', 'nilai']), angkaB = (v) => { const n = Math.round(num(v, 0) * 100) / 100; return String(n); };
+    const th = (s) => '<th' + (Dom.adaArab(s) ? ' class="arab" dir="rtl"' : '') + '>' + esc(s) + '</th>';
+    const kos = Array.from({ length: nK }, () => '<td></td>').join(''), nKos = this.kosongkan(t.kosong), nPolos = this.kosongkan(t.polos);
+    const baris = lb.mhs.map((m, i) => '<tr><td class="c">' + (i + 1) + '</td><td class="nm">' + esc(m.Nama) + '</td>' + kos + '</tr>').join('') +
+      Array.from({ length: nKos }, (_, i) => '<tr class="kos"><td class="c">' + (lb.mhs.length + i + 1) + '</td><td></td>' + kos + '</tr>').join('') +
+      Array.from({ length: nPolos }, () => '<tr class="kos"><td></td><td></td>' + kos + '</tr>').join('');
+    const html = this.kop(t) +
+      '<div class="nt-ttl"><div>NILAI ' + (ujian === 'UAS' ? 'UJIAN AKHIR SEMESTER' : 'UJIAN TENGAH SEMESTER') + ' ' + esc(p.smt.toUpperCase()) + '</div><div>TAHUN AKADEMIK ' + esc(p.ta) + '</div>' +
+        '<div>PRODI ' + esc(Dom.prodiNama(lb.prodi).toUpperCase()) + ' SEMESTER ' + lb.smt + '</div><div>MATA KULIAH ' + esc(judulMK.toUpperCase()) + '</div></div>' +
+      '<div class="nt-ds">DOSEN PENGAMPU : ' + esc(lb.dosen || '……………………………………') + '</div>' +
+      '<table class="t' + (t.putus === false ? ' solid' : '') + '" style="--rh:' + num(t.baris, 1.75) + 'em"><colgroup><col style="width:' + w('no') + '"><col style="width:' + w('nama') + '">' + Array.from({ length: nK }, () => '<col style="width:' + w('nilai', nK) + '">').join('') + '</colgroup>' +
+        '<thead><tr><th rowspan="3">No</th><th rowspan="3">Nama Mahasiswa</th><th colspan="' + nK + '">' + ujian + '</th></tr><tr>' + komp.map(k => th(k.label)).join('') + th(labelTotal) + '</tr>' +
+        '<tr class="bb">' + komp.map(k => '<th>' + esc(angkaB(k.bobot)) + '</th>').join('') + '<th>' + esc(angkaB(total)) + '</th></tr></thead><tbody>' + baris + '</tbody></table>' +
+      '<div class="nt-ttd"><div>Dosen Pengampu,<div class="sp"></div>' + esc(lb.dosen || '(……………………………)') + '</div><div>' + esc(pj.jabatan || 'PJ Alquran') + ',<div class="sp"></div>' + esc(pj.nama || '(……………………………)') + '</div></div>' +
+      (t.qr !== false ? '<div class="nt-f">' + this.vbox(kode, 'Lembar nilai ' + ujian + ' Tahfidz') + '</div>' : '');
+    const jkT = f.jk === 'L' ? ' (Laki-laki)' : f.jk === 'P' ? ' (Perempuan)' : '';
+    return { judul: Dom.prodiNama(lb.prodi) + ' · Smt ' + lb.smt + jkT, nama: 'Nilai ' + ujian + ' Tahfidz ' + lb.prodi + ' Smt ' + lb.smt + ' Angkatan ' + lb.angkatan + jkT + ' — ' + Dom.perLabel(perKey).replace('/', '-'),
+      halaman: [Cetak.halaman(html, f.orient === 'landscape', 'nt', { fs: 11.5, min: 6 })],
+      dok: { kode, jenis: 'NILAI_TAHFIDZ', judul: 'Nilai ' + ujian + ' Tahfidz — ' + Dom.prodiNama(lb.prodi) + ' Semester ' + lb.smt + jkT, ringkasan: { prodi: Dom.prodiNama(lb.prodi), angkatan: lb.angkatan, semester: lb.smt, dosen: lb.dosen, jumlah: lb.mhs.length + ' mahasiswa' + jkT } } };
   },
 
   /* ---------- Kalender Akademik (A4 landscape, editor = pratinjau) ---------- */

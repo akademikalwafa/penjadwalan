@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.1.0">
+  <link rel="stylesheet" href="css/style.css?v=1.2.0">
   <script>try { var t = localStorage.getItem('pa:tema'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}</script>
   <style>
     body { background: var(--bg); min-height: 100vh; }
@@ -62,7 +62,7 @@
     <p class="vf-foot">Halaman ini hanya menampilkan ringkasan dokumen yang terdaftar.<br>Data pribadi seperti nomor WhatsApp tidak pernah ditampilkan.</p>
   </main>
 
-  <script src="js/config.js?v=1.1.0"></script>
+  <script src="js/config.js?v=1.2.0"></script>
   <script>
   'use strict';
   (function () {
@@ -72,7 +72,7 @@
       ok: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>', q: '<circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>'
     };
     var BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    var JENIS = { SURAT_TUGAS: 'Surat Tugas Mengajar', JADWAL_KELAS: 'Jadwal Perkuliahan Kelas', JADWAL_DOSEN: 'Jadwal Mengajar Dosen', JADWAL_SELURUH: 'Seluruh Jadwal Perkuliahan', UJIAN: 'Jadwal Ujian', ABSENSI: 'Absensi Mahasiswa', DAFTAR_HADIR: 'Daftar Hadir', PENERIMA_KITAB: 'Absensi Penerima Kitab', KALENDER: 'Kalender Akademik', TEMPLATE: 'Dokumen Template', DOKUMEN: 'Dokumen' };
+    var JENIS = { SURAT_TUGAS: 'Surat Tugas Mengajar', JADWAL_KELAS: 'Jadwal Perkuliahan Kelas', JADWAL_DOSEN: 'Jadwal Mengajar Dosen', JADWAL_SELURUH: 'Seluruh Jadwal Perkuliahan', UJIAN: 'Jadwal Ujian', ABSENSI: 'Absensi Mahasiswa', DAFTAR_HADIR: 'Daftar Hadir', PENERIMA_KITAB: 'Absensi Penerima Kitab', KALENDER: 'Kalender Akademik', HADIR_DOSEN: 'Daftar Kehadiran Dosen', PDDIKTI: 'Daftar Mata Kuliah PDDIKTI', NILAI_TAHFIDZ: 'Lembar Nilai Tahfidz', TEMPLATE: 'Dokumen Template', DOKUMEN: 'Dokumen' };
     var LABEL = { dosen: 'Nama dosen', nidn: 'NIDN', prodi: 'Program studi', kelas: 'Kelas', semester: 'Semester', rombel_label: 'Rombongan belajar', kegiatan: 'Kegiatan', tanggal: 'Tanggal', jumlah: 'Jumlah', pola: 'Pola jam', jenis_ujian: 'Jenis ujian', template: 'Template' };
     var LOGO = '<svg viewBox="0 0 64 64" width="100%" height="100%" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#1E3A8A"/><path d="M14 22c6-3 12-3 18 1v24c-6-4-12-4-18-1z" fill="#fff"/><path d="M50 22c-6-3-12-3-18 1v24c6-4 12-4 18-1z" fill="#DCE4F7"/><path d="M32 12l4 6h-8z" fill="#F97316"/><circle cx="32" cy="10" r="2.2" fill="#F97316"/></svg>';
     $('#vf-logo').innerHTML = LOGO;

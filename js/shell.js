@@ -23,6 +23,7 @@ const MENU = [
   { id: 'cetak-hadir', label: 'Cetak Daftar Hadir', icon: 'idcard' },
   { id: 'cetak-hadir-dosen', label: 'Cetak Kehadiran Dosen', icon: 'usercheck' },
   { id: 'cetak-kitab', label: 'Cetak Absensi Penerima Kitab', icon: 'bookmark' },
+  { id: 'cetak-tahfidz', label: 'Cetak Penilaian Tahfidz', icon: 'award' },
   { id: 'template', label: 'Dokumen dari Template', icon: 'files' },
   { grp: 'Pelaporan' },
   { id: 'pddikti', label: 'Pelaporan PDDIKTI', icon: 'report' },

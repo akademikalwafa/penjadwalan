@@ -4,7 +4,7 @@
    sesi, komponen UI (toast, modal, menu konteks, pager), router.
    ===================================================================== */
 'use strict';
-const VERSI = '1.1.0';
+const VERSI = '1.2.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));

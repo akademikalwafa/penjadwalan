@@ -269,6 +269,22 @@
 .pk .pk-f { display: flex; justify-content: space-between; align-items: flex-end; margin-top: .6em; font-size: .85em; }
 .pk .pk-f .faint { color: #64748B; font-size: .85em; }
 
+/* -------- Penilaian Tahfidz (v1.2) — format lembar nilai kampus -------- */
+.nt { color: #000; font-family: 'Times New Roman', Times, 'Liberation Serif', serif; }
+.nt .nt-ttl { text-align: center; font-weight: 700; line-height: 1.55; margin: .3em 0 1.2em; font-size: 1.04em; }
+.nt .nt-ds { font-weight: 700; margin: 0 0 .3em .1em; }
+.nt table.t { border: 1.3px solid #000; }
+.nt table.t th { background: #DBE5F1; border: 1px solid #000; font-weight: 700; padding: .28em .25em; text-align: center; vertical-align: middle; font-size: .96em; }
+.nt table.t th.arab { font-family: 'Amiri', 'Traditional Arabic', 'Times New Roman', serif; font-size: 1.08em; line-height: 1.25; }
+.nt table.t td { border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px dashed #000; height: var(--rh, 1.75em); padding: .08em .45em; font-size: .96em; }
+.nt table.t.solid td { border-bottom-style: solid; }
+.nt table.t td.c { text-align: center; }
+.nt table.t td.nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nt .nt-ttd { display: grid; grid-template-columns: 1fr 1fr; gap: 2em; text-align: center; margin-top: 1.5em; font-weight: 700; }
+.nt .nt-ttd .sp { height: 4.8em; }
+.nt .nt-f { margin-top: auto; padding-top: .8em; }
+.nt .nt-f .vbox { font-family: 'Inter', Arial, sans-serif; }
+
 /* -------- Mode cetak browser -------- */
 @media print {
   @page { size: A4 portrait; margin: 0; }

@@ -8,7 +8,7 @@
    browser hanya menerima versi tersamar (meta.samar).
    ===================================================================== */
 'use strict';
-const JENIS_DOK = { SURAT_TUGAS: 'Surat Tugas', JADWAL_KELAS: 'Jadwal Kelas', JADWAL_DOSEN: 'Jadwal Dosen', JADWAL_SELURUH: 'Seluruh Jadwal', UJIAN: 'Jadwal Ujian', UTS: 'Jadwal UTS', UAS: 'Jadwal UAS', ABSENSI: 'Absensi Mahasiswa', DAFTAR_HADIR: 'Daftar Hadir', PENERIMA_KITAB: 'Penerima Kitab', KALENDER: 'Kalender Akademik', TEMPLATE: 'Dokumen Template', DOKUMEN: 'Dokumen' };
+const JENIS_DOK = { SURAT_TUGAS: 'Surat Tugas', JADWAL_KELAS: 'Jadwal Kelas', JADWAL_DOSEN: 'Jadwal Dosen', JADWAL_SELURUH: 'Seluruh Jadwal', UJIAN: 'Jadwal Ujian', UTS: 'Jadwal UTS', UAS: 'Jadwal UAS', ABSENSI: 'Absensi Mahasiswa', DAFTAR_HADIR: 'Daftar Hadir', PENERIMA_KITAB: 'Penerima Kitab', KALENDER: 'Kalender Akademik', HADIR_DOSEN: 'Kehadiran Dosen', PDDIKTI: 'PDDIKTI', NILAI_TAHFIDZ: 'Nilai Tahfidz', TEMPLATE: 'Dokumen Template', DOKUMEN: 'Dokumen' };
 function ukuranTeks(b) { b = num(b); if (!b) return '—'; return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
 function badgeStatusWA(s) {
   const m = { Antri: ['info', 'Antri'], Terkirim: ['ok', 'Terkirim'], Gagal: ['err', 'Gagal'], Batal: ['', 'Batal'], Berjalan: ['info', 'Berjalan'], Selesai: ['ok', 'Selesai'], Dihentikan: ['warn', 'Dihentikan'] }[s] || ['', s || '—'];
