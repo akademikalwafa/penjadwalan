@@ -610,7 +610,7 @@ defPage('blast', {
 /* =====================================================================
    PENGATURAN (khusus Admin Utama)
    ===================================================================== */
-const TAB_SET = [['periode', 'Periode & Semester', 'cal'], ['prodi', 'Prodi & Kelas', 'building'], ['jam', 'Jam Sesi', 'clock'], ['surat', 'Surat Tugas & Kop', 'filetext'], ['wa', 'WhatsApp (Fonnte)', 'wa'], ['sumber', 'Sumber Data & Verifikasi', 'database'], ['akun', 'Kelola Akun', 'users'], ['migrasi', 'Impor & Cadangan', 'upload'], ['sistem', 'Sistem & Log', 'activity']];
+const TAB_SET = [['periode', 'Periode & Semester', 'cal'], ['prodi', 'Prodi & Kelas', 'building'], ['jam', 'Jam Sesi', 'clock'], ['surat', 'Surat Tugas & Identitas', 'filetext'], ['kop', 'Kop Surat & Tata Cetak', 'image'], ['wa', 'WhatsApp (Fonnte)', 'wa'], ['sumber', 'Sumber Data & Verifikasi', 'database'], ['akun', 'Kelola Akun', 'users'], ['migrasi', 'Impor & Cadangan', 'upload'], ['sistem', 'Sistem & Log', 'activity']];
 const HARI_JAM = ['Senin-Jumat', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const SHEET_MIGRASI = [['Dosen', 'Nama, NIDN, WA, Keterangan'], ['Kitab', 'Nama kitab'], ['Kurikulum', 'Angkatan, Prodi, Kelas, Semester, Kode MK, Nama MK, Nama Arab, SKS, Tahfidz'], ['GrupWA', 'Prodi, Angkatan, Kelas, ID Grup, Nama Grup'], ['Kalender', 'T.A., Semester, Kegiatan, Mulai, Selesai'], ['Agenda', 'Judul, Catatan, Mulai, Batas']];
 function jamKeInput(v) { return String(v || '').replace('.', ':'); }
@@ -668,6 +668,7 @@ defPage('pengaturan', {
       '<div class="tabs">' + TAB_SET.map(t => '<button class="' + (s.tab === t[0] ? 'on' : '') + '" data-a="nav" data-to="pengaturan/' + t[0] + '">' + ic(t[2], 'ic-sm') + t[1] + '</button>').join('') + '</div>';
     h += this['v_' + s.tab]();
     this.el.innerHTML = h;
+    if (s.tab === 'kop') requestAnimationFrame(() => this.kopZoom());
   },
   inputSet(k, o) { o = o || {}; return '<input class="input' + (o.mono ? ' mono' : '') + '" data-in="set" data-k="' + k + '" value="' + attr(this.v(k)) + '"' + (o.ph ? ' placeholder="' + attr(o.ph) + '"' : '') + (o.type ? ' type="' + o.type + '"' : '') + (o.dir ? ' dir="' + o.dir + '"' : '') + '>'; },
   switchSet(k, label, sub, dis) { return '<label class="row" style="flex-wrap:nowrap;cursor:pointer;padding:10px 0;border-bottom:1px solid var(--border)"><div style="flex:1;min-width:0"><b style="font-size:14px">' + label + '</b>' + (sub ? '<div class="t-sub muted">' + sub + '</div>' : '') + '</div><span class="switch"><input type="checkbox" data-ch="ya" data-k="' + k + '" ' + (this.v(k) === 'YA' ? 'checked' : '') + (dis ? ' disabled' : '') + '><i></i></span></label>'; },
@@ -737,6 +738,118 @@ defPage('pengaturan', {
   },
 
   /* ---------- 4. Surat tugas & kop ---------- */
+  /* ---------- Kop Surat & Tata Cetak (v1.1) ---------- */
+  kopBarisKerja() {
+    const raw = this.v('KOP_BARIS', '');
+    let js = null; try { js = raw ? JSON.parse(raw) : null; } catch (e) { js = null; }
+    return Array.isArray(js) && js.length ? js.map(b => Object.assign({ teks: '', ukuran: 10, tebal: false, miring: false, arab: false, warna: '#111827' }, b)) : Doc.kopBawaan().map(b => Object.assign({ tebal: false, miring: false, arab: false }, b));
+  },
+  kopCfgKerja() { return { mode: this.v('KOP_MODE', 'bawaan'), baris: this.kopBarisKerja(), garis: this.v('KOP_GARIS', 'ganda'), logo: this.v('KOP_LOGO', 'kiri'), rata: this.v('KOP_RATA', 'tengah'), mm: num(this.v('KOP_LOGO_MM', '22'), 22), tinggi: num(this.v('KOP_TINGGI', '30'), 30) }; },
+  kopPratinjau() { return '<div class="kop-kertas"><div class="kop-in">' + Doc.kopDari(this.kopCfgKerja()) + '<div class="kop-isi"><div></div><div></div><div style="width:70%"></div><div></div><div style="width:55%"></div></div></div></div>'; },
+  kopSegarkan() { const el = $('#kop-pv', this.el); if (el) { el.innerHTML = this.kopPratinjau(); this.kopZoom(); } },
+  kopZoom() { const w = $('#kop-pv', this.el); const k = w && w.querySelector('.kop-kertas'); if (!k) return; k.style.zoom = ''; const cs = getComputedStyle(w), z = Math.min(1, (w.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2) / k.offsetWidth); k.style.zoom = z > 0 ? z : 1; },
+  v_kop() {
+    const aset = DB.raw.Aset || {}, mode = this.v('KOP_MODE', 'bawaan'), baris = this.kopBarisKerja(), pos = this.v('KOP_LOGO', 'kiri'), tata = Dom.setJson('TATA_CETAK', {}) || {};
+    const kustom = !!this.v('KOP_BARIS', '');
+    const seg = (k, list, nilai) => '<div class="seg">' + list.map(x => '<button data-a="kopSet" data-k="' + k + '" data-v="' + x[0] + '" class="' + (nilai === x[0] ? 'on' : '') + '">' + x[1] + '</button>').join('') + '</div>';
+    const editor = '<div class="kop-baris">' + baris.map((b, i) => '<div class="kb-row">' +
+        '<input class="input" data-in="kopTeks" data-i="' + i + '" value="' + attr(b.teks) + '" placeholder="Teks baris ' + (i + 1) + '"' + (b.arab ? ' dir="rtl" style="font-family:var(--arab);font-size:16px"' : '') + '>' +
+        '<div class="kb-tools"><input class="input sm" type="number" min="5" max="40" step="0.5" data-ch="kopUk" data-i="' + i + '" value="' + attr(b.ukuran) + '" title="Ukuran huruf (pt)" style="width:68px">' +
+        '<button class="btn btn-sm btn-icon' + (b.tebal ? ' btn-primary' : '') + '" data-a="kopTgl" data-f="tebal" data-i="' + i + '" title="Tebal"><b>B</b></button>' +
+        '<button class="btn btn-sm btn-icon' + (b.miring ? ' btn-primary' : '') + '" data-a="kopTgl" data-f="miring" data-i="' + i + '" title="Miring"><i style="font-family:Georgia,serif">I</i></button>' +
+        '<button class="btn btn-sm' + (b.arab ? ' btn-primary' : '') + '" data-a="kopTgl" data-f="arab" data-i="' + i + '" title="Huruf Arab (kanan ke kiri)">ع</button>' +
+        '<input type="color" class="kb-warna" data-ch="kopWarna" data-i="' + i + '" value="' + attr(/^#[0-9a-f]{6}$/i.test(b.warna) ? b.warna : '#111827') + '" title="Warna">' +
+        '<button class="btn btn-sm btn-icon btn-ghost" data-a="kopGeser" data-d="-1" data-i="' + i + '" title="Naik" ' + (i ? '' : 'disabled') + '>' + ic('up', 'ic-sm') + '</button>' +
+        '<button class="btn btn-sm btn-icon btn-ghost" data-a="kopGeser" data-d="1" data-i="' + i + '" title="Turun" ' + (i < baris.length - 1 ? '' : 'disabled') + '>' + ic('down', 'ic-sm') + '</button>' +
+        '<button class="btn btn-sm btn-icon btn-ghost" data-a="kopHapusBaris" data-i="' + i + '" title="Hapus baris">' + ic('trash', 'ic-sm') + '</button></div></div>').join('') + '</div>' +
+      '<div class="row" style="margin-top:8px"><button class="btn btn-sm" data-a="kopTambahBaris" ' + (baris.length >= 8 ? 'disabled' : '') + '>' + ic('plus', 'ic-sm') + 'Tambah baris</button>' + (kustom ? '<button class="link-btn" data-a="kopResetBaris">Kembalikan dari Identitas Kampus</button>' : '<span class="faint" style="font-size:12px">Teks diambil dari Identitas Kampus (tab Surat Tugas &amp; Identitas) sampai Anda mengubahnya di sini.</span>') + '</div>';
+    const logoKartu = (j, nama, kunci) => '<div class="kop-aset"><div class="kop-aset-g">' + (aset[kunci] ? '<img src="' + aset[kunci] + '" alt="' + nama + '">' : '<span class="faint">' + (kunci === 'logo2' ? 'Memakai logo utama' : 'Logo bawaan aplikasi') + '</span>') + '</div><b>' + nama + '</b><div class="row gap-s" style="justify-content:center"><button class="btn btn-sm" data-a="aset" data-v="' + j + '">' + ic('upload', 'ic-sm') + (aset[kunci] ? 'Ganti' : 'Unggah') + '</button>' + (aset[kunci] ? '<button class="btn btn-sm btn-icon" data-a="asetHapus" data-v="' + j + '" title="Hapus">' + ic('trash', 'ic-sm') + '</button>' : '') + '</div></div>';
+    const jenis = Object.keys(Tata.SPEC);
+    return '<div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))"><div class="stack" style="min-width:0">' +
+      '<div class="card"><div class="card-h"><h3>' + ic('image') + 'Sumber Kop Surat</h3><span class="sp"></span>' + seg('KOP_MODE', [['bawaan', 'Disusun di aplikasi'], ['gambar', 'Gambar / Google Docs']], mode) + '</div><div class="card-b">' +
+        (mode === 'gambar' ? (aset.kop ? '<div class="kop-gb-pv"><img src="' + aset.kop + '" alt="Kop"></div>' : '<div class="alert warn" style="margin:0 0 12px">' + ic('alert') + '<div>Belum ada gambar kop. Unggah gambar atau ambil dari Google Docs — sampai itu, dokumen memakai kop yang disusun di aplikasi.</div></div>') +
+          '<div class="row" style="margin-top:12px"><button class="btn" data-a="kopUnggah">' + ic('upload') + 'Unggah Gambar Kop</button><button class="btn btn-primary" data-a="kopDoc">' + ic('filetext') + 'Ambil dari Google Docs</button>' + (aset.kop ? '<button class="btn btn-icon btn-ghost" data-a="asetHapus" data-v="KOP" title="Hapus gambar kop">' + ic('trash', 'ic-sm') + '</button>' : '') + '</div>' +
+          '<div class="tt-row" style="margin-top:14px;max-width:420px"><label>Tinggi kop pada kertas</label><input type="range" min="10" max="90" step="1" data-ch="kopTinggi" value="' + attr(this.v('KOP_TINGGI', '30')) + '"><span class="mono">' + esc(this.v('KOP_TINGGI', '30')) + ' mm</span></div>' +
+          '<span class="help">Google Docs: buat dokumen berisi kop resmi di bagian atas halaman pertama, bagikan ke akun pemilik aplikasi (minimal Pelihat), tempel tautannya, lalu atur batas potong. Hasilnya disimpan sebagai gambar di folder Aset.</span>'
+        : '<div class="fgrid c2"><div class="field"><label>Posisi logo</label><select class="input" data-ch="setr" data-k="KOP_LOGO">' + opsi([{ v: 'kiri', l: 'Kiri' }, { v: 'kanan', l: 'Kanan' }, { v: 'keduanya', l: 'Kiri & kanan' }, { v: 'tanpa', l: 'Tanpa logo' }], pos) + '</select></div>' +
+          '<div class="field"><label>Perataan teks</label><select class="input" data-ch="setr" data-k="KOP_RATA">' + opsi([{ v: 'tengah', l: 'Tengah' }, { v: 'kiri', l: 'Rata kiri' }], this.v('KOP_RATA', 'tengah')) + '</select></div>' +
+          '<div class="field"><label>Garis bawah kop</label><select class="input" data-ch="setr" data-k="KOP_GARIS">' + opsi([{ v: 'ganda', l: 'Ganda' }, { v: 'tebal-tipis', l: 'Tebal + tipis' }, { v: 'tunggal', l: 'Tunggal' }, { v: 'tanpa', l: 'Tanpa garis' }], this.v('KOP_GARIS', 'ganda')) + '</select></div>' +
+          '<div class="field"><label>Ukuran logo: <b>' + esc(this.v('KOP_LOGO_MM', '22')) + ' mm</b></label><input type="range" min="10" max="40" step="1" data-ch="kopMm" value="' + attr(this.v('KOP_LOGO_MM', '22')) + '" style="width:100%;accent-color:var(--primary)"></div></div>' +
+          '<div class="lbl" style="margin:14px 0 6px">Baris teks kop</div>' + editor +
+          (pos !== 'tanpa' ? '<div class="grid2" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px">' + logoKartu('LOGO', 'Logo utama', 'logo') + (pos === 'keduanya' ? logoKartu('LOGO2', 'Logo kanan', 'logo2') : '') + '</div>' : '')) +
+      '</div></div></div>' +
+      '<div class="stack" style="min-width:0"><div class="card"><div class="card-h"><h3>' + ic('eye') + 'Pratinjau Kop (A4)</h3><span class="sp"></span>' + (this.isDirty() ? '<span class="badge orange">Belum disimpan</span>' : '<span class="badge ok">Tersimpan</span>') + '</div><div class="card-b"><div id="kop-pv" class="kop-pv">' + this.kopPratinjau() + '</div></div></div>' +
+      '<div class="card"><div class="card-h"><h3>' + ic('layers') + 'Kop &amp; Tata Letak per Dokumen</h3></div><div class="tbl-wrap"><table class="tbl compact"><thead><tr><th>Dokumen</th><th class="center">Pakai kop</th><th>Tata letak</th><th class="right"></th></tr></thead><tbody>' +
+        jenis.map(j => { const t = Tata.nilai(j), sim = tata[j]; return '<tr><td><b>' + esc(Tata.SPEC[j].judul) + '</b></td><td class="center"><label class="switch"><input type="checkbox" data-ch="kopDok" data-v="' + j + '" ' + (t.kop ? 'checked' : '') + '><i></i></label></td>' +
+          '<td>' + (sim && Object.keys(sim).length ? '<span class="badge info">Disesuaikan</span>' : '<span class="badge">Bawaan aplikasi</span>') + '</td><td class="right">' + (sim && Object.keys(sim).length ? '<button class="btn btn-sm btn-ghost" data-a="tataReset" data-v="' + j + '">' + ic('refresh', 'ic-sm') + 'Reset</button>' : '') + '</td></tr>'; }).join('') +
+        '</tbody></table></div><div class="card-b"><span class="help">Lebar kolom, tinggi baris, dan baris kosong diatur langsung dari tombol <b>Tata Letak</b> di layar pratinjau cetak, lalu <b>Jadikan bawaan</b>.</span></div></div></div></div>';
+  },
+  kopBarisSimpan(list) { this.setNilai('KOP_BARIS', JSON.stringify(list.map(b => ({ teks: String(b.teks || '').slice(0, 150), ukuran: Math.max(5, Math.min(40, num(b.ukuran, 10))), tebal: !!b.tebal, miring: !!b.miring, arab: !!b.arab, warna: /^#[0-9a-f]{6}$/i.test(b.warna) ? b.warna : '#111827' })))); },
+  /** Gambar → dataURL ≤ ~900 KB (PNG bila muat, selain itu JPEG). */
+  async kopKeDataUrl(canvas) {
+    let w = canvas.width, h = canvas.height;
+    const maxW = 2200; if (w > maxW) { const c2 = document.createElement('canvas'); c2.width = maxW; c2.height = Math.round(h * maxW / w); c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height); canvas = c2; w = c2.width; h = c2.height; }
+    let url = canvas.toDataURL('image/png');
+    if (url.length * 0.75 > 900 * 1024) { const c3 = document.createElement('canvas'); c3.width = w; c3.height = h; const g = c3.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(canvas, 0, 0); for (const q of [0.92, 0.85, 0.75]) { url = c3.toDataURL('image/jpeg', q); if (url.length * 0.75 <= 900 * 1024) break; } }
+    return url;
+  },
+  async kopSimpanGambar(dataUrl, tinggiMm, btn) {
+    const r = await denganSibuk(btn, 'Menyimpan…', () => api('aset.unggah', { jenis: 'KOP', berkas64: dataUrl }));
+    if (!r.success) return false;
+    if (tinggiMm) { const r2 = await api('pengaturan.simpan', { nilai: { KOP_TINGGI: String(Math.max(10, Math.min(90, Math.round(tinggiMm)))) } }, { silent: true }); if (!r2.success) toast(r2.message, 'warn'); delete this.st.nilai.KOP_TINGGI; }
+    delete this.st.nilai.KOP_MODE;
+    toast('Kop surat tersimpan dan dipakai pada dokumen yang menampilkan kop.');
+    this.render(); return true;
+  },
+  /** Potong kop dari halaman pertama PDF/gambar (hasil kop.dariDoc). */
+  async kopPotong(data) {
+    let kanvas, wMm = 210, hMm = 297;
+    try {
+      if (/pdf/.test(data.mime)) {
+        const lib = await Lib.pdfjs(), bin = atob(data.berkas64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const pdf = await lib.getDocument({ data: u8, isEvalSupported: false }).promise, pg = await pdf.getPage(1), v1 = pg.getViewport({ scale: 1 });
+        wMm = v1.width / 72 * 25.4; hMm = v1.height / 72 * 25.4;
+        const vp = pg.getViewport({ scale: 2000 / v1.width }); kanvas = document.createElement('canvas'); kanvas.width = Math.round(vp.width); kanvas.height = Math.round(vp.height);
+        const g = kanvas.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, kanvas.width, kanvas.height);
+        await pg.render({ canvasContext: g, viewport: vp }).promise;
+      } else {
+        const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = 'data:' + data.mime + ';base64,' + data.berkas64; });
+        kanvas = document.createElement('canvas'); kanvas.width = img.naturalWidth; kanvas.height = img.naturalHeight; kanvas.getContext('2d').drawImage(img, 0, 0); wMm = 0;
+      }
+    } catch (e) { console.error(e); toast('Dokumen tidak bisa ditampilkan: ' + e.message, 'err'); return; }
+    const W = kanvas.width, H = kanvas.height, px = kanvas.getContext('2d').getImageData(0, 0, W, H).data;
+    const gelap = (x, y) => { const i = (y * W + x) * 4; return px[i] + px[i + 1] + px[i + 2] < 600; };
+    /* bagian gelap tersambung terpanjang pada satu baris piksel (garis kop ≈ panjang, teks ≈ terputus-putus) */
+    const baris = (y) => { let best = 0, run = 0, celah = 0; for (let x = 0; x < W; x++) { if (gelap(x, y)) { run += 1 + celah; celah = 0; if (run > best) best = run; } else if (run && celah < 3) celah++; else { run = 0; celah = 0; } } return best / W; };
+    const isi = (y) => { for (let x = 0; x < W; x += 3) if (gelap(x, y)) return true; return false; };
+    /* deteksi otomatis: isi pertama dari atas → garis horizontal panjang pertama (garis kop) */
+    let atas = 0; while (atas < H * 0.6 && !isi(atas)) atas++;
+    let bawah = -1;
+    for (let y = atas; y < Math.min(H, atas + H * 0.45); y++) { if (baris(y) > 0.4) { let z = y; while (z < H - 7 && [1, 2, 3, 4, 5, 6].some(d => baris(z + d) > 0.4)) z++; bawah = z; break; } }
+    if (bawah < 0) { let y = atas, kosong = 0; while (y < H * 0.5) { if (!isi(y)) { kosong++; if (kosong > H * 0.025) break; } else kosong = 0; y++; } bawah = y - kosong; }
+    let kiri = W, kanan = 0; for (let y = atas; y <= bawah; y += 2) for (let x = 0; x < W; x += 2) if (gelap(x, y)) { if (x < kiri) kiri = x; if (x > kanan) kanan = x; }
+    if (kanan <= kiri) { kiri = 0; kanan = W - 1; }
+    const pad = Math.round(W * 0.006), st = { t: Math.max(0, atas - pad) / H * 100, b: Math.min(H, bawah + pad * 2) / H * 100, l: Math.max(0, kiri - pad) / W * 100, r: Math.min(W, kanan + pad) / W * 100 };
+    const src = kanvas.toDataURL('image/jpeg', 0.8);
+    const potong = () => { const c = document.createElement('canvas'), x = Math.round(st.l / 100 * W), y = Math.round(st.t / 100 * H); c.width = Math.max(1, Math.round((st.r - st.l) / 100 * W)); c.height = Math.max(1, Math.round((st.b - st.t) / 100 * H)); c.getContext('2d').drawImage(kanvas, x, y, c.width, c.height, 0, 0, c.width, c.height); return c; };
+    const ukur = () => { if (!wMm) return null; const w = (st.r - st.l) / 100 * wMm, h = (st.b - st.t) / 100 * hMm; return { w, h: h * Math.min(1, 190 / w) }; };
+    const geser = (k, l, mn, mx) => '<div class="tt-row"><label>' + l + '</label><input type="range" min="' + mn + '" max="' + mx + '" step="0.1" value="' + st[k].toFixed(1) + '" data-kp="' + k + '"><span class="mono" id="kp-' + k + '">' + st[k].toFixed(1) + '%</span></div>';
+    const m = Modal.buka({ title: 'Potong Kop dari Dokumen', sub: esc(data.nama || ''), icon: 'crop', size: 'lg',
+      body: '<div class="kp-wrap"><div class="kp-hal" id="kp-hal"><div class="kp-in"><img src="' + src + '" alt="Halaman 1"><div class="kp-kotak" id="kp-kotak"></div></div></div><div class="kp-sisi">' +
+        '<div class="lbl">Batas potong</div>' + geser('t', 'Atas', 0, 60) + geser('b', 'Bawah', 1, 80) + geser('l', 'Kiri', 0, 40) + geser('r', 'Kanan', 60, 100) +
+        '<div class="lbl" style="margin-top:10px">Hasil</div><div class="kp-hasil" id="kp-hasil"></div><div class="help" id="kp-ukur"></div>' +
+        '<div class="alert info" style="margin:10px 0 0;font-size:12.5px">' + ic('info') + '<div>Batas dideteksi otomatis sampai garis kop. Geser bila perlu, lalu simpan.</div></div></div></div>',
+      foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-a="ok">' + ic('save') + 'Simpan sebagai Kop</button>',
+      acts: { ok: async (b, e, mm) => { const c = potong(), u = ukur(); const url = await this.kopKeDataUrl(c); if (await this.kopSimpanGambar(url, u ? u.h : 0, b)) mm.close(); } } });
+    const segar = () => {
+      const k = $('#kp-kotak', m.el); if (k) Object.assign(k.style, { top: st.t + '%', height: (st.b - st.t) + '%', left: st.l + '%', width: (st.r - st.l) + '%' });
+      const h = $('#kp-hasil', m.el); if (h) { h.innerHTML = ''; const c = potong(); c.style.width = '100%'; c.style.height = 'auto'; h.appendChild(c); }
+      const u = ukur(), uk = $('#kp-ukur', m.el); if (uk) uk.textContent = u ? 'Ukuran di kertas ± ' + Math.min(190, u.w).toFixed(0) + ' × ' + u.h.toFixed(0) + ' mm' : '';
+    };
+    m.el.addEventListener('input', (e) => { const i = e.target.closest('[data-kp]'); if (!i) return; const k = i.dataset.kp; st[k] = num(i.value); if (st.b <= st.t + 1) st.b = st.t + 1; if (st.r <= st.l + 1) st.r = st.l + 1; $('#kp-' + k, m.el).textContent = st[k].toFixed(1) + '%'; clearTimeout(this._kp); this._kp = setTimeout(segar, 60); });
+    segar();
+  },
+
   v_surat() {
     const aset = DB.raw.Aset || {}, n = num(this.v('ST_NOMOR_TERAKHIR', '0')) + 1, maks = DB.rows('SuratTugas').reduce((a, x) => Math.max(a, num(x.NomorUrut)), 0);
     const f = (k, label, o) => { o = o || {}; return '<div class="field' + (o.full ? '" style="grid-column:1/-1' : '') + '"><label>' + label + '</label>' + (o.ta ? '<textarea class="input" data-in="set" data-k="' + k + '" rows="' + (o.rows || 3) + '">' + esc(this.v(k)) + '</textarea>' : this.inputSet(k, o)) + (o.help ? '<span class="help">' + o.help + '</span>' : '') + '</div>'; };
@@ -935,9 +1048,33 @@ defPage('pengaturan', {
     jamHapus(b) { const jam = this.jamKerja().slice(); jam.splice(+b.dataset.v, 1); this.st.jam = jam; this.render(); App.savebar(this); },
     ujTambah() { let uj = []; try { uj = JSON.parse(this.v('UJIAN_SESI', '[]')); } catch (e) {} const a = uj[uj.length - 1]; const m0 = a ? Dom.menit(a.selesai) + 20 : 480; const f = (m) => String(Math.floor(m / 60)).padStart(2, '0') + '.' + String(m % 60).padStart(2, '0'); uj.push({ sesi: uj.length + 1, mulai: f(m0), selesai: f(m0 + 90) }); this.setNilai('UJIAN_SESI', JSON.stringify(uj)); this.render(); App.savebar(this); },
     ujHapus(b) { let uj = []; try { uj = JSON.parse(this.v('UJIAN_SESI', '[]')); } catch (e) {} uj.splice(+b.dataset.v, 1); uj.forEach((u, i) => { u.sesi = i + 1; }); this.setNilai('UJIAN_SESI', JSON.stringify(uj)); this.render(); App.savebar(this); },
+    kopSet(b) { this.setNilai(b.dataset.k, b.dataset.v); this.render(); App.savebar(this); },
+    kopTgl(b) { const l = this.kopBarisKerja(), x = l[+b.dataset.i]; if (!x) return; x[b.dataset.f] = !x[b.dataset.f]; this.kopBarisSimpan(l); this.render(); },
+    kopGeser(b) { const l = this.kopBarisKerja(), i = +b.dataset.i, j = i + num(b.dataset.d); if (!l[i] || !l[j]) return; [l[i], l[j]] = [l[j], l[i]]; this.kopBarisSimpan(l); this.render(); },
+    kopHapusBaris(b) { const l = this.kopBarisKerja(); l.splice(+b.dataset.i, 1); this.kopBarisSimpan(l.length ? l : [{ teks: Doc.kampus().toUpperCase(), ukuran: 16, tebal: true, warna: '#1E3A8A' }]); this.render(); },
+    kopTambahBaris() { const l = this.kopBarisKerja(); l.push({ teks: '', ukuran: 10, tebal: false, miring: false, arab: false, warna: '#374151' }); this.kopBarisSimpan(l); this.render(); },
+    kopResetBaris() { this.setNilai('KOP_BARIS', ''); this.render(); },
+    async kopUnggah(b) {
+      const f = await pilihBerkas('image/png,image/jpeg,image/webp'); if (!f) return;
+      try {
+        const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+        const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+        const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0);
+        await this.kopSimpanGambar(await this.kopKeDataUrl(c), 0, b);
+      } catch (e) { toast('Gambar tidak bisa dibaca.', 'err'); }
+    },
+    kopDoc() {
+      Modal.buka({ title: 'Ambil Kop dari Google Docs', icon: 'filetext', body: '<div class="stack"><div class="field"><label>Tautan Google Docs / PDF / gambar di Drive</label><input class="input" id="kd-url" placeholder="https://docs.google.com/document/d/…/edit" autocomplete="off"><span class="help">Dokumen harus dapat dibuka oleh akun pemilik aplikasi. Halaman pertama dipakai sebagai sumber kop.</span></div></div>',
+        foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-a="ok">' + ic('download') + 'Muat Dokumen</button>',
+        acts: { ok: async (bb, e, m) => { const url = $('#kd-url', m.el).value.trim(); if (!url) return toast('Tempel tautan dokumen.', 'warn'); const r = await denganSibuk(bb, 'Memuat…', () => api('kop.dariDoc', { url })); if (r.success) { m.close(); toast(r.message, 'info'); this.kopPotong(r.data); } } } });
+    },
+    async tataReset(b) {
+      const j = b.dataset.v; if (!(await konfirmasi('Kembalikan tata letak <b>' + esc(Tata.SPEC[j].judul) + '</b> ke bawaan aplikasi?', { ok: 'Kembalikan' }))) return;
+      const r = await denganSibuk(b, '', () => api('cetak.tata', { jenis: j, nilai: null })); if (r.success) toast(r.message);
+    },
     async aset(b) {
       const f = await pilihBerkas('image/png,image/jpeg,image/webp'); if (!f) return;
-      let data; try { data = await kecilkanGambar(f, b.dataset.v === 'LOGO' ? 600 : 900); } catch (e) { toast('Gambar tidak bisa dibaca.', 'err'); return; }
+      let data; try { data = await kecilkanGambar(f, /^LOGO/.test(b.dataset.v) ? 600 : 900); } catch (e) { toast('Gambar tidak bisa dibaca.', 'err'); return; }
       if (data.length * 0.75 > 800 * 1024) { try { data = await kecilkanGambar(f, 500); } catch (e) {} }
       const r = await denganSibuk(b, '', () => api('aset.unggah', { jenis: b.dataset.v, berkas64: data }));
       if (r.success) toast(r.message);
@@ -1015,6 +1152,14 @@ defPage('pengaturan', {
   },
   ch: {
     setr(t) { this.setNilai(t.dataset.k, t.value); this.render(); App.savebar(this); },
+    kopUk(t) { const l = this.kopBarisKerja(), x = l[+t.dataset.i]; if (!x) return; x.ukuran = Math.max(5, Math.min(40, num(t.value, 10))); this.kopBarisSimpan(l); this.kopSegarkan(); },
+    kopWarna(t) { const l = this.kopBarisKerja(), x = l[+t.dataset.i]; if (!x) return; x.warna = t.value; this.kopBarisSimpan(l); this.kopSegarkan(); },
+    kopTinggi(t) { this.setNilai('KOP_TINGGI', String(Math.round(num(t.value, 30)))); this.render(); },
+    kopMm(t) { this.setNilai('KOP_LOGO_MM', String(Math.round(num(t.value, 22)))); this.render(); },
+    async kopDok(t) {
+      const j = t.dataset.v, nilai = Object.assign({}, (Dom.setJson('TATA_CETAK', {}) || {})[j] || {}, { kop: t.checked });
+      const r = await api('cetak.tata', { jenis: j, nilai }); if (r.success) toast((t.checked ? 'Kop ditampilkan pada ' : 'Kop disembunyikan pada ') + Tata.SPEC[j].judul + '.'); else t.checked = !t.checked;
+    },
     ya(t) { this.setNilai(t.dataset.k, t.checked ? 'YA' : 'TIDAK'); this.render(); App.savebar(this); },
     tglPer(t) {
       let o = {}; try { o = JSON.parse(this.v('PERIODE_TANGGAL', '{}')); } catch (e) {}
@@ -1043,6 +1188,7 @@ defPage('pengaturan', {
     migTimpa(t) { this.st.mig.timpa = t.checked; this.render(); }
   },
   inp: {
+    kopTeks(t) { const l = this.kopBarisKerja(), x = l[+t.dataset.i]; if (!x) return; x.teks = t.value; this.kopBarisSimpan(l); this.kopSegarkan(); },
     set(t) {
       this.setNilai(t.dataset.k, t.value);
       if (t.dataset.k === 'ST_FORMAT' || t.dataset.k === 'ST_NOMOR_TERAKHIR') { const c = $('#st-contoh', this.el); if (c) c.textContent = nomorContoh(this.v('ST_FORMAT'), num(this.v('ST_NOMOR_TERAKHIR', '0')) + 1, this.v('ST_TANGGAL')); }

@@ -4,7 +4,7 @@
    sesi, komponen UI (toast, modal, menu konteks, pager), router.
    ===================================================================== */
 'use strict';
-const VERSI = '1.0.0';
+const VERSI = '1.1.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -42,6 +42,9 @@ function relatif(s) {
 
 /* ---------------- Ikon (SVG garis 24×24) ---------------- */
 const IC = {
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+  crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
+  report: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M8 18v-3M12 18v-6M16 18v-4"/>',
   grid: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
@@ -133,7 +136,8 @@ const Lib = {
     html2canvas: ['https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'],
     jspdf: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'],
     xlsx: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'],
-    qrcode: ['https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js', 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js']
+    qrcode: ['https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js', 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js'],
+    pdfjs: ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js']
   },
   skrip(url) {
     return new Promise((res, rej) => {
@@ -153,7 +157,14 @@ const Lib = {
   },
   xlsx() { return this.load('xlsx', () => window.XLSX); },
   qr() { return this.load('qrcode', () => window.qrcode); },
-  pdf() { return Promise.all([this.load('html2canvas', () => window.html2canvas), this.load('jspdf', () => window.jspdf)]); }
+  pdf() { return Promise.all([this.load('html2canvas', () => window.html2canvas), this.load('jspdf', () => window.jspdf)]); },
+  /** pdf.js (render halaman PDF → kanvas) untuk memotong kop dari Google Docs. Worker dari CDN yang sama. */
+  async pdfjs() {
+    await this.load('pdfjs', () => window.pdfjsLib);
+    const lib = window.pdfjsLib;
+    if (!lib.GlobalWorkerOptions.workerSrc) { const sc = [...document.scripts].find(x => /pdf(\.min)?\.js(\?|$)/.test(x.src)); lib.GlobalWorkerOptions.workerSrc = (sc ? sc.src : this.URL.pdfjs[0]).replace(/pdf(\.min)?\.js(\?.*)?$/, 'pdf.worker.min.js'); }
+    return lib;
+  }
 };
 
 /* ---------------- Pengukur performa (console: Perf.table()) ---------------- */
@@ -213,7 +224,9 @@ const DB = {
     if (!LS.set(DB.kunci(), isi)) {                          /* kuota penuh → tanpa tabel besar */
       const r2 = Object.assign({}, DB.raw), v2 = Object.assign({}, DB.ver);
       ['Mahasiswa', 'Kurikulum'].forEach(n => { delete r2[n]; delete v2[n]; });
-      LS.set(DB.kunci(), { v: VERSI, raw: r2, ver: v2, periode: App.periode, at: Date.now() });
+      if (!LS.set(DB.kunci(), { v: VERSI, raw: r2, ver: v2, periode: App.periode, at: Date.now() })) {   /* masih penuh (gambar kop/logo besar) → tanpa Aset */
+        delete r2.Aset; delete v2.Aset; LS.set(DB.kunci(), { v: VERSI, raw: r2, ver: v2, periode: App.periode, at: Date.now() });
+      }
     }
   }, 600),
   muatLokal() {
@@ -228,7 +241,7 @@ const DB = {
 /* ---------------- API (fetch → GAS, POST text/plain) ---------------- */
 const Net = {
   inflight: {}, epoch: 0, online: true,
-  BACA: /^(boot|refresh|data\.periode|dokumen\.daftar|de\.daftar|de\.status|wa\.blastStatus|wa\.riwayat|crm\.daftar|sistem\.status|log\.daftar|wa\.siapkan|realisasi\.salinLalu|jadwal\.generate|ujian\.generate|rekap\.tes|wa\.device|wa\.grup|berkas\.unduh|ping|mahasiswa\.refresh|migrasi\.pindai)$/,
+  BACA: /^(boot|refresh|data\.periode|dokumen\.daftar|de\.daftar|de\.status|wa\.blastStatus|wa\.riwayat|crm\.daftar|sistem\.status|log\.daftar|wa\.siapkan|realisasi\.salinLalu|jadwal\.generate|ujian\.generate|rekap\.tes|wa\.device|wa\.grup|berkas\.unduh|ping|mahasiswa\.refresh|migrasi\.pindai|kop\.dariDoc|pddikti\.excel)$/,
   url() { return (window.APP_CONFIG && window.APP_CONFIG.GAS_URL) || ''; },
   siap() { const u = this.url(); return /^https:\/\//.test(u) && !/GANTI|XXXX/.test(u); }
 };

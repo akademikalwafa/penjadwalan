@@ -4,5 +4,5 @@
  * URL /exec bukan rahasia; keamanan dijaga login + pemeriksaan peran di server.
  */
 window.APP_CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbx4rDGKwV0d2jd3dVzfsGWTjQZ1tvnRGqwjME4u51TUvayyiUPk-kWB6q1RegoHuE4/exec'
+  GAS_URL: 'https://script.google.com/macros/s/GANTI_DENGAN_ID_DEPLOYMENT/exec'
 };

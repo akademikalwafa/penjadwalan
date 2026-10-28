@@ -1,7 +1,8 @@
 /* =====================================================================
    PENJADWALAN AL WAFA — pages-cetak.js
    Cetak Jadwal (Per Kelas, Per Dosen, Seluruh), Surat Tugas, Absensi
-   Mahasiswa, Daftar Hadir, Penerima Kitab, Dokumen dari Template.
+   Mahasiswa, Daftar Hadir (mahasiswa/dosen), Kehadiran Dosen, Penerima
+   Kitab, Dokumen dari Template.
    Semua tombol Cetak membuka pratinjau terlebih dahulu.
    ===================================================================== */
 'use strict';
@@ -153,8 +154,8 @@ defPage('cetak-st', {
   },
   buka(ids) {
     const per = App.perAktif(), s = this.st, tanggal = s.tanggal;
-    Cetak.buka({ judul: 'Pratinjau — Surat Tugas Mengajar', sub: (ids.length === 1 ? Dom.dosenNama(ids[0]) : ids.length + ' dosen') + ' · ' + Dom.perLabel(per) + ' · A4 Portrait', periode: per, folder: 'Surat Tugas', simpan: 'per', bisaOrientasi: false,
-      buat: () => ids.map(id => { const st = Dom.stDosen(per).get(id); return Doc.suratTugas(id, per, st, st && st.Tanggal !== tanggal ? tanggal : (st ? null : tanggal)); }),
+    Cetak.buka({ judul: 'Pratinjau — Surat Tugas Mengajar', sub: (ids.length === 1 ? Dom.dosenNama(ids[0]) : ids.length + ' dosen') + ' · ' + Dom.perLabel(per) + ' · A4 Portrait', periode: per, folder: 'Surat Tugas', simpan: 'per', bisaOrientasi: false, tata: 'SURAT_TUGAS',
+      buat: (ctx) => ids.map(id => { const st = Dom.stDosen(per).get(id); return Doc.suratTugas(id, per, st, st && st.Tanggal !== tanggal ? tanggal : (st ? null : tanggal), ctx); }),
       sebelum: async () => {
         const perlu = ids.filter(id => { const st = Dom.stDosen(per).get(id); return !st || st.Tanggal !== tanggal; });
         if (!perlu.length) return true;
@@ -189,7 +190,7 @@ defPage('cetak-absensi', {
     const d = DB.get('Dosen', 'ID', s.dosen) || {}, mk = [...new Map((berj.get(s.dosen) || []).map(u => [u.id, u])).values()].sort(Dom.rombelUrut);
     this.el.innerHTML = kepala({ crumb: ['Cetak', 'Cetak Absensi Mahasiswa', Dom.perLabel(per)], judul: 'Cetak Absensi Mahasiswa', desc: 'Daftar hadir perkuliahan per dosen pengampu, terpilah per kelas dan pertemuan. Satu lembar A4 per kelas.', aksi: App.perToggle() + btnRefresh(false) }) +
       '<div class="kpis">' + kpi({ lb: 'Dosen Terjadwal', vl: dosen.length + '<small>dosen</small>', ic: 'usercheck' }) + kpi({ lb: 'Total Kelas Ajar', vl: [...berj.values()].reduce((a, l) => a + new Set(l.map(u => u.id)).size, 0) + '<small>rombel·MK</small>', ic: 'users' }) +
-      kpi({ lb: 'Format Dokumen', vl: s.n + '<small>pertemuan</small>', ic: 'filetext', ft: 'Pas 1 lembar A4 · + 4 baris susulan' }) + kpi({ lb: 'Data Terkoneksi', vl: fmtAngka(Dom.mhsAktif().length) + '<small>mahasiswa aktif</small>', ic: 'database', cls: 'ok', ft: 'Cuti, mundur & lulus dikecualikan otomatis' }) + '</div>' +
+      kpi({ lb: 'Format Dokumen', vl: s.n + '<small>pertemuan</small>', ic: 'filetext', ft: 'Pas 1 lembar A4 · + ' + Tata.nilai('ABSENSI').kosong + ' baris susulan' }) + kpi({ lb: 'Data Terkoneksi', vl: fmtAngka(Dom.mhsAktif().length) + '<small>mahasiswa aktif</small>', ic: 'database', cls: 'ok', ft: 'Cuti, mundur & lulus dikecualikan otomatis' }) + '</div>' +
       '<div class="grid2" style="grid-template-columns:minmax(0,1fr)"><div class="card"><div class="card-h"><h3>' + ic('filter') + 'Parameter Cetak Presensi</h3><span class="sp"></span><span class="faint">PRD 5.14</span></div><div class="card-b"><div class="fgrid">' +
       '<div class="field" style="grid-column:span 2"><label>Pilih Dosen Pengampu (' + dosen.length + ' terjadwal)</label><select class="input" data-ch="dosen">' + opsi(dosen.map(x => ({ v: x.ID, l: x.Nama + (x.NIDN ? ' (NIDN: ' + x.NIDN + ')' : '') })), s.dosen) + '</select></div>' +
       '<div class="field"><label>Jumlah Pertemuan</label><input type="number" min="1" max="32" class="input" data-ch="n" value="' + s.n + '"></div></div>' +
@@ -200,13 +201,13 @@ defPage('cetak-absensi', {
         return '<tr><td><span class="badge info sq mono">' + esc(u.kur.KodeMK) + '</span> <b>' + esc(u.kur.NamaMK) + '</b>' + (u.kur.NamaArab ? ' <span class="arab muted">' + esc(u.kur.NamaArab) + '</span>' : '') + '<div class="t-sub">' + u.sks + ' SKS' + (u.gabung ? ' · gabung (dicetak per kelas asal)' : '') + '</div></td><td>' + esc(Dom.prodiNama(u.prodi)) + '</td><td>Smt ' + u.smt + ' · ' + esc(u.kelas) + '</td><td>' + badgeKelas(u.kelas) + '</td>' +
           '<td style="min-width:150px">' + esc(Dom.hariJam(u.id, per, u.pola) || '—') + '</td><td>' + n + ' mhs' + (s.jk ? ' (' + s.jk + ')' : '') + '</td><td class="right nowrap"><button class="btn btn-sm" data-a="unduh" data-v="' + u.id + '">' + ic('download', 'ic-sm') + 'Unduh</button> <button class="btn btn-sm btn-soft" data-a="lihat" data-v="' + u.id + '">' + ic('eye', 'ic-sm') + 'Cetak Form Absensi</button></td></tr>'; }).join('') ||
         '<tr><td colspan="7">' + kosong('Pilih dosen pengampu yang memiliki jadwal.', 'users') + '</td></tr>') + '</tbody></table></div></div>' +
-      '<div class="alert info side">' + ic('shield') + '<div><b>Kaidah cetak:</b> Mata kuliah gabung dicetak per kelas asal. Mahasiswa aktif diurutkan menurut nama, selalu ditambah <b>4 baris kosong bernomor lanjutan</b> untuk susulan/tamu. Format hitam putih.</div></div></div>';
+      '<div class="alert info side">' + ic('shield') + '<div><b>Kaidah cetak:</b> Mata kuliah gabung dicetak per kelas asal. Mahasiswa aktif diurutkan menurut nama, ditambah <b>' + Tata.nilai('ABSENSI').kosong + ' baris kosong bernomor lanjutan</b> untuk susulan/tamu. Format hitam putih. Lebar kolom, tinggi baris, dan kop diatur lewat tombol <b>Tata Letak</b> di pratinjau.</div></div></div>';
   },
   buka(ids, unduh) {
     const per = App.perAktif(), s = this.st, um = Dom.unitMap(per), units = ids.map(id => um.get(id)).filter(Boolean);
-    Cetak.buka({ judul: 'Pratinjau — Absensi Mahasiswa', sub: Dom.dosenNama(s.dosen) + ' · ' + units.length + ' kelas · ' + s.n + ' pertemuan', periode: per, folder: 'Absensi Mahasiswa', prefix: 'ABS', jenis: 'ABSENSI', orientasi: s.or, simpan: units.length === 1 ? 'per' : 'gabung',
+    Cetak.buka({ judul: 'Pratinjau — Absensi Mahasiswa', sub: Dom.dosenNama(s.dosen) + ' · ' + units.length + ' kelas · ' + s.n + ' pertemuan', periode: per, folder: 'Absensi Mahasiswa', prefix: 'ABS', jenis: 'ABSENSI', orientasi: s.or, simpan: units.length === 1 ? 'per' : 'gabung', tata: 'ABSENSI',
       namaFile: units.length === 1 ? undefined : 'Absensi ' + Dom.dosenNama(s.dosen) + ' (' + units.length + ' kelas)' + (s.jk ? ' ' + s.jk : '') + ' — ' + Dom.perLabel(per).replace('/', '-'),
-      buat: (ctx) => units.map(u => Doc.absensi(u, per, { pertemuan: s.n, jk: s.jk, orient: ctx.orient }, units.length > 1 ? ctx : null)), dok: { judul: 'Absensi ' + Dom.dosenNama(s.dosen), ringkasan: { dosen: Dom.dosenNama(s.dosen), jumlah: units.length + ' kelas' } } });
+      buat: (ctx) => units.map(u => Doc.absensi(u, per, { pertemuan: s.n, jk: s.jk, orient: ctx.orient }, ctx)), dok: { judul: 'Absensi ' + Dom.dosenNama(s.dosen), ringkasan: { dosen: Dom.dosenNama(s.dosen), jumlah: units.length + ' kelas' } } });
     if (unduh) setTimeout(() => { const b = $('#preview [data-pv="unduh"]'); if (b) b.click(); }, 900);
   },
   acts: {
@@ -218,42 +219,177 @@ defPage('cetak-absensi', {
 });
 
 /* =====================================================================
-   CETAK DAFTAR HADIR (kegiatan)
+   CETAK DAFTAR HADIR (kegiatan) — peserta mahasiswa per rombel atau dosen
    ===================================================================== */
 defPage('cetak-hadir', {
-  deps: ['Mahasiswa', 'Kelas', 'Prodi', 'Aset', 'Pengaturan'], refreshTabel: ['Mahasiswa'], pakaiPer: true,
-  st: { judul: '', tanggal: '', lokasi: '', or: 'portrait', prog: '', jk: '', pilih: {} },
+  deps: ['Mahasiswa', 'Kelas', 'Prodi', 'Dosen', 'Aset', 'Pengaturan'], refreshTabel: ['Mahasiswa', 'Dosen'], pakaiPer: true,
+  st: { judul: '', tanggal: '', lokasi: '', program: '', or: 'portrait', prog: '', jk: '', pilih: {}, peserta: 'mhs', dpilih: {}, dq: '', dpola: '' },
+  dosenList(per) {
+    const s = this.st, berj = Dom.dosenBerjadwal(per);
+    return Dom.dosen().filter(d => (!s.dpola || (s.dpola === 'jadwal' ? berj.has(d.ID) : (berj.get(d.ID) || []).some(u => u.pola === s.dpola))) && cocok(d.Nama + ' ' + d.NIDN, s.dq));
+  },
   render() {
-    const s = this.st, per = App.perAktif(), rombel = Dom.rombelMhs(per);
+    const s = this.st, per = App.perAktif(), rombel = Dom.rombelMhs(per), dsnMode = s.peserta === 'dosen';
     if (!s.tanggal) s.tanggal = isoTgl();
     const kls = Dom.kelasTerjadwal().map(k => k.Nama), list = rombel.filter(r => !s.prog || r.kelas === s.prog), nPilih = list.filter(r => s.pilih[r.key]).length;
+    const dl = this.dosenList(per), nD = Object.keys(s.dpilih).filter(id => s.dpilih[id]).length, nDl = dl.filter(d => s.dpilih[d.ID]).length;
     const hit = (r) => { const m = Dom.mhsRombel(r.prodi, r.angkatan, r.kelas, s.jk); return { n: m.length, L: m.filter(x => x.JK === 'L').length, P: m.filter(x => x.JK === 'P').length }; };
-    this.el.innerHTML = kepala({ crumb: ['Cetak', 'Cetak Daftar Hadir'], judul: 'Cetak Daftar Hadir', desc: 'Lembar presensi resmi untuk kuliah pakar, seminar, stadium generale, kajian, dan agenda akademik per rombongan belajar.', aksi: App.perToggle() + btnRefresh(false) + '<button class="btn btn-primary" data-a="semua" ' + (nPilih ? '' : 'disabled') + '>' + ic('printer') + 'Cetak Semua Kelas Terpilih (' + nPilih + ')</button>' }) +
+    const t = Tata.nilai('DAFTAR_HADIR');
+    const tombol = dsnMode ? '<button class="btn btn-primary" data-a="cetakDosen" ' + (nD ? '' : 'disabled') + '>' + ic('printer') + 'Cetak Daftar Hadir Dosen (' + nD + ')</button>'
+      : '<button class="btn btn-primary" data-a="semua" ' + (nPilih ? '' : 'disabled') + '>' + ic('printer') + 'Cetak Semua Kelas Terpilih (' + nPilih + ')</button>';
+    this.el.innerHTML = kepala({ crumb: ['Cetak', 'Cetak Daftar Hadir'], judul: 'Cetak Daftar Hadir', desc: 'Lembar presensi resmi untuk kuliah pakar, seminar, stadium generale, kajian, rapat, dan agenda akademik — untuk mahasiswa per rombel maupun dosen.', aksi: App.perToggle() + btnRefresh(false) + tombol }) +
       '<div class="grid2"><div class="card"><div class="card-h"><h3>' + ic('clipboard') + 'Bagian 1: Data Kegiatan</h3><span class="sp"></span><span class="badge orange">Wajib diisi</span></div><div class="card-b stack">' +
-      '<div class="field"><label>Judul Kegiatan / Perkuliahan</label><input class="input" data-in="judul" maxlength="120" value="' + attr(s.judul) + '" placeholder="mis. Kuliah Pakar & Stadium Generale: Metodologi Fiqh Muamalah"></div>' +
+      '<div class="field"><label>Peserta</label><div class="seg">' + [['mhs', 'Mahasiswa (per rombel)'], ['dosen', 'Dosen']].map(x => '<button data-a="peserta" data-v="' + x[0] + '" class="' + (s.peserta === x[0] ? 'on' : '') + '">' + x[1] + '</button>').join('') + '</div></div>' +
+      '<div class="field"><label>Judul Kegiatan / Perkuliahan</label><input class="input" data-in="judul" maxlength="120" value="' + attr(s.judul) + '" placeholder="mis. Kegiatan Studi Islam"></div>' +
       '<div class="fgrid c2"><div class="field"><label>Hari &amp; Tanggal *</label><input type="date" class="input" data-ch="tanggal" value="' + attr(s.tanggal) + '"><span class="help">' + esc(fmtHariTgl(s.tanggal)) + '</span></div><div class="field"><label>Lokasi / Ruang</label><input class="input" data-in="lokasi" value="' + attr(s.lokasi) + '" placeholder="mis. Auditorium Utama Lt. 3"></div></div>' +
-      '<div class="field"><label>Orientasi Kertas Cetak</label>' + orientSeg(s.or) + '</div></div></div>' +
-      '<div class="card"><div class="card-h"><h3>' + ic('filter') + 'Bagian 2: Filter &amp; Rombel</h3><span class="sp"></span><span class="faint">' + list.length + ' dari ' + rombel.length + ' tampil</span></div><div class="card-b stack">' +
-      '<div class="field"><label>Program Kelas</label><div class="row gap-s"><button class="chip ' + (!s.prog ? 'on' : '') + '" data-a="prog" data-v="">Semua <small>(' + rombel.length + ')</small></button>' + kls.map(k => '<button class="chip ' + (s.prog === k ? 'on' : '') + '" data-a="prog" data-v="' + attr(k) + '">' + esc(k) + ' <small>(' + rombel.filter(r => r.kelas === k).length + ')</small></button>').join('') + '</div></div>' +
-      '<div class="field"><label>Filter Kelompok Mahasiswa</label>' + jkSeg(s.jk) + '</div>' +
-      '<div class="alert info" style="margin:0">' + ic('info') + '<div><b>Format zig-zag tanda tangan:</b> nomor ganjil di kiri, nomor genap di kanan. Selalu ada 4 baris kosong di bawah daftar nama untuk peserta tambahan.</div></div></div></div></div>' +
-      '<div class="card" style="margin-top:16px"><div class="card-h"><label class="chk"><input type="checkbox" data-ch="semua" ' + (list.length && nPilih === list.length ? 'checked' : '') + '> <b>Pilih semua rombel terfilter</b></label><span class="sp"></span><span class="faint">' + nPilih + ' dipilih</span></div>' +
-      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:36px"></th><th>Prodi</th><th>Semester &amp; Kelas</th><th>Program</th><th>Mahasiswa</th><th class="right">Aksi</th></tr></thead><tbody>' +
-      (list.map(r => { const h = hit(r); return '<tr><td><input type="checkbox" style="width:17px;height:17px;accent-color:var(--primary)" data-ch="pilih" data-v="' + attr(r.key) + '" ' + (s.pilih[r.key] ? 'checked' : '') + '></td><td><b>' + dotProdi(r.prodi) + ' ' + esc(Dom.prodiNama(r.prodi)) + '</b></td><td>Semester ' + r.smt + ' · ' + esc(r.kelas) + '<div class="t-sub">Angkatan ' + esc(r.angkatan) + '</div></td><td>' + badgeKelas(r.kelas) + '</td>' +
-        '<td><b>' + h.n + '</b> mahasiswa <span class="faint">(L:' + h.L + ' · P:' + h.P + ')</span></td><td class="right"><button class="btn btn-sm btn-soft" data-a="lihat" data-v="' + attr(r.key) + '">' + ic('eye', 'ic-sm') + 'Cetak Daftar Hadir</button></td></tr>'; }).join('') ||
-        '<tr><td colspan="6">' + kosong('Tidak ada rombel mahasiswa aktif pada filter ini.', 'users') + '</td></tr>') + '</tbody></table></div></div>';
+      '<div class="fgrid c2"><div class="field"><label>Program</label><input class="input" data-in="program" maxlength="80" value="' + attr(s.program) + '" placeholder="' + (dsnMode ? 'mis. Rapat Dosen' : 'mis. Reguler Pagi — kosong = nama kelas') + '"></div><div class="field"><label>Orientasi Kertas</label>' + orientSeg(s.or) + '</div></div></div></div>' +
+      (dsnMode
+        ? '<div class="card"><div class="card-h"><h3>' + ic('filter') + 'Bagian 2: Pilih Dosen</h3><span class="sp"></span><span class="faint">' + dl.length + ' dosen tampil</span></div><div class="card-b stack">' +
+          '<div class="field"><label>Filter dosen</label><div class="row gap-s">' + [['', 'Semua dosen'], ['jadwal', 'Berjadwal semester ini'], ['Reguler', 'Mengajar Reguler'], ['Hybrid', 'Mengajar Hybrid']].map(x => '<button class="chip ' + (s.dpola === x[0] ? 'on' : '') + '" data-a="dpola" data-v="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>' +
+          '<div class="input-ic">' + ic('search') + '<input class="input" data-in="dq" placeholder="Cari nama dosen atau NIDN…" value="' + attr(s.dq) + '"></div></div></div>'
+        : '<div class="card"><div class="card-h"><h3>' + ic('filter') + 'Bagian 2: Filter &amp; Rombel</h3><span class="sp"></span><span class="faint">' + list.length + ' dari ' + rombel.length + ' tampil</span></div><div class="card-b stack">' +
+          '<div class="field"><label>Program Kelas</label><div class="row gap-s"><button class="chip ' + (!s.prog ? 'on' : '') + '" data-a="prog" data-v="">Semua <small>(' + rombel.length + ')</small></button>' + kls.map(k => '<button class="chip ' + (s.prog === k ? 'on' : '') + '" data-a="prog" data-v="' + attr(k) + '">' + esc(k) + ' <small>(' + rombel.filter(r => r.kelas === k).length + ')</small></button>').join('') + '</div></div>' +
+          '<div class="field"><label>Filter Kelompok Mahasiswa</label>' + jkSeg(s.jk) + '</div></div></div>') + '</div>' +
+      '<div class="alert info" style="margin:16px 0 0">' + ic('info') + '<div><b>Kotak tanda tangan berpasangan:</b> setiap kotak setinggi dua baris nama — kotak kiri untuk nomor ganjil (nomor di pojok kiri atas), kotak kanan untuk nomor genap (nomor di pojok kiri bawah). ' +
+        (t.kosong ? 'Ditambah ' + t.kosong + ' baris kosong untuk peserta tambahan. ' : '') + 'Lebar kolom, tinggi baris, kop surat, dan catatan diatur lewat tombol <b>Tata Letak</b> di pratinjau.</div></div>' +
+      (dsnMode
+        ? '<div class="card" style="margin-top:16px"><div class="card-h"><label class="chk"><input type="checkbox" data-ch="semuaD" ' + (dl.length && nDl === dl.length ? 'checked' : '') + '> <b>Pilih semua dosen tampil</b></label><span class="sp"></span><span class="faint">' + nD + ' dipilih</span></div>' +
+          '<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:36px"></th><th>Nama Dosen</th><th>NIDN</th><th>Mengajar</th></tr></thead><tbody>' +
+          (dl.map(d => { const l = Dom.dosenBerjadwal(per).get(d.ID) || [], pola = [...new Set(l.map(u => u.pola))];
+            return '<tr><td><input type="checkbox" style="width:17px;height:17px;accent-color:var(--primary)" data-ch="dpilih" data-v="' + attr(d.ID) + '" ' + (s.dpilih[d.ID] ? 'checked' : '') + '></td><td><div class="row" style="flex-wrap:nowrap"><div class="avatar">' + esc(inisial(d.Nama)) + '</div><b>' + esc(d.Nama) + '</b></div></td><td class="mono">' + esc(d.NIDN || '—') + '</td><td>' + (pola.map(p => '<span class="badge ' + (p === 'Hybrid' ? 'orange' : 'info') + '">' + p + '</span>').join(' ') || '<span class="faint">—</span>') + '</td></tr>'; }).join('') ||
+            '<tr><td colspan="4">' + kosong('Tidak ada dosen pada filter ini.', 'users') + '</td></tr>') + '</tbody></table></div></div>'
+        : '<div class="card" style="margin-top:16px"><div class="card-h"><label class="chk"><input type="checkbox" data-ch="semua" ' + (list.length && nPilih === list.length ? 'checked' : '') + '> <b>Pilih semua rombel terfilter</b></label><span class="sp"></span><span class="faint">' + nPilih + ' dipilih</span></div>' +
+          '<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:36px"></th><th>Prodi</th><th>Semester &amp; Kelas</th><th>Program</th><th>Mahasiswa</th><th class="right">Aksi</th></tr></thead><tbody>' +
+          (list.map(r => { const h = hit(r); return '<tr><td><input type="checkbox" style="width:17px;height:17px;accent-color:var(--primary)" data-ch="pilih" data-v="' + attr(r.key) + '" ' + (s.pilih[r.key] ? 'checked' : '') + '></td><td><b>' + dotProdi(r.prodi) + ' ' + esc(Dom.prodiNama(r.prodi)) + '</b></td><td>Semester ' + r.smt + ' · ' + esc(r.kelas) + '<div class="t-sub">Angkatan ' + esc(r.angkatan) + '</div></td><td>' + badgeKelas(r.kelas) + '</td>' +
+            '<td><b>' + h.n + '</b> mahasiswa <span class="faint">(L:' + h.L + ' · P:' + h.P + ')</span></td><td class="right"><button class="btn btn-sm btn-soft" data-a="lihat" data-v="' + attr(r.key) + '">' + ic('eye', 'ic-sm') + 'Cetak Daftar Hadir</button></td></tr>'; }).join('') ||
+            '<tr><td colspan="6">' + kosong('Tidak ada rombel mahasiswa aktif pada filter ini.', 'users') + '</td></tr>') + '</tbody></table></div></div>');
   },
+  f() { const s = this.st; return { judul: s.judul, tanggal: s.tanggal, lokasi: s.lokasi, program: s.program.trim(), jk: s.jk }; },
   buka(keys) {
     const s = this.st, per = App.perAktif(), rbs = Dom.rombelMhs(per).filter(r => keys.includes(r.key));
     if (!s.tanggal) return toast('Isi Hari & Tanggal kegiatan.', 'err');
-    const f = { judul: s.judul, tanggal: s.tanggal, lokasi: s.lokasi, jk: s.jk, orient: s.or };
-    Cetak.buka({ judul: 'Pratinjau — Daftar Hadir', sub: (s.judul || 'Kegiatan') + ' · ' + rbs.length + ' kelas', periode: per, folder: 'Daftar Hadir', prefix: 'DH', jenis: 'DAFTAR_HADIR', orientasi: s.or, simpan: rbs.length === 1 ? 'per' : 'gabung',
+    const f = this.f();
+    Cetak.buka({ judul: 'Pratinjau — Daftar Hadir', sub: (s.judul || 'Kegiatan') + ' · ' + rbs.length + ' kelas', periode: per, folder: 'Daftar Hadir', prefix: 'DH', jenis: 'DAFTAR_HADIR', orientasi: s.or, simpan: rbs.length === 1 ? 'per' : 'gabung', tata: 'DAFTAR_HADIR',
       namaFile: 'Daftar Hadir ' + (s.judul || 'Kegiatan').slice(0, 60) + ' (' + rbs.length + ' kelas) ' + s.tanggal,
-      buat: (ctx) => rbs.map(rb => Doc.daftarHadir(rb, per, Object.assign({}, f, { orient: ctx.orient === 'auto' ? 'portrait' : ctx.orient }), rbs.length > 1 ? ctx : null)), dok: { judul: 'Daftar Hadir: ' + (s.judul || 'Kegiatan'), ringkasan: { kegiatan: s.judul, tanggal: s.tanggal, jumlah: rbs.length + ' kelas' } } });
+      buat: (ctx) => rbs.map(rb => Doc.daftarHadir(rb, per, Object.assign({}, f, { orient: ctx.orient === 'auto' ? 'portrait' : ctx.orient }), ctx)), dok: { judul: 'Daftar Hadir: ' + (s.judul || 'Kegiatan'), ringkasan: { kegiatan: s.judul, tanggal: s.tanggal, jumlah: rbs.length + ' kelas' } } });
   },
-  acts: { or(b) { this.st.or = b.dataset.v; this.render(); }, jk(b) { this.st.jk = b.dataset.v; this.render(); }, prog(b) { this.st.prog = b.dataset.v; this.render(); }, lihat(b) { this.buka([b.dataset.v]); }, semua() { const ks = Object.keys(this.st.pilih).filter(k => this.st.pilih[k]); if (ks.length) this.buka(ks); } },
-  ch: { tanggal(t) { this.st.tanggal = t.value; this.render(); }, pilih(t) { this.st.pilih[t.dataset.v] = t.checked; this.render(); }, semua(t) { Dom.rombelMhs(App.perAktif()).filter(r => !this.st.prog || r.kelas === this.st.prog).forEach(r => { this.st.pilih[r.key] = t.checked; }); this.render(); } },
-  inp: { judul(t) { this.st.judul = t.value; }, lokasi(t) { this.st.lokasi = t.value; } }
+  bukaDosen() {
+    const s = this.st, per = App.perAktif(), ids = Dom.dosen().filter(d => s.dpilih[d.ID]).map(d => d.ID);
+    if (!ids.length) return;
+    if (!s.tanggal) return toast('Isi Hari & Tanggal kegiatan.', 'err');
+    const f = Object.assign(this.f(), { peserta: 'dosen', dosenIds: ids, jk: '' });
+    Cetak.buka({ judul: 'Pratinjau — Daftar Hadir Dosen', sub: (s.judul || 'Kegiatan') + ' · ' + ids.length + ' dosen', periode: per, folder: 'Daftar Hadir', prefix: 'DH', jenis: 'DAFTAR_HADIR', orientasi: s.or, simpan: 'per', tata: 'DAFTAR_HADIR',
+      buat: (ctx) => [Doc.daftarHadir(null, per, Object.assign({}, f, { orient: ctx.orient === 'auto' ? 'portrait' : ctx.orient }), ctx)] });
+  },
+  acts: {
+    or(b) { this.st.or = b.dataset.v; this.render(); }, jk(b) { this.st.jk = b.dataset.v; this.render(); }, prog(b) { this.st.prog = b.dataset.v; this.render(); },
+    peserta(b) { this.st.peserta = b.dataset.v; this.render(); }, dpola(b) { this.st.dpola = b.dataset.v; this.render(); },
+    lihat(b) { this.buka([b.dataset.v]); }, semua() { const ks = Object.keys(this.st.pilih).filter(k => this.st.pilih[k]); if (ks.length) this.buka(ks); },
+    cetakDosen() { this.bukaDosen(); }
+  },
+  ch: {
+    tanggal(t) { this.st.tanggal = t.value; this.render(); }, pilih(t) { this.st.pilih[t.dataset.v] = t.checked; this.render(); },
+    semua(t) { Dom.rombelMhs(App.perAktif()).filter(r => !this.st.prog || r.kelas === this.st.prog).forEach(r => { this.st.pilih[r.key] = t.checked; }); this.render(); },
+    dpilih(t) { this.st.dpilih[t.dataset.v] = t.checked; this.render(); },
+    semuaD(t) { this.dosenList(App.perAktif()).forEach(d => { this.st.dpilih[d.ID] = t.checked; }); this.render(); }
+  },
+  inp: {
+    judul(t) { this.st.judul = t.value; }, lokasi(t) { this.st.lokasi = t.value; }, program(t) { this.st.program = t.value; },
+    dq: debounce(function (t) { this.st.dq = t.value; this.render(); const i = $('[data-in="dq"]', this.el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250)
+  }
+});
+
+/* =====================================================================
+   CETAK KEHADIRAN DOSEN (v1.1) — rekap mingguan per pola jam, format Excel kampus
+   ===================================================================== */
+defPage('cetak-hadir-dosen', {
+  deps: ['Jadwal', 'Realisasi', 'Kurikulum', 'Dosen', 'Kelas', 'Prodi', 'JamSesi', 'Pengaturan', 'Aset'], refreshTabel: ['Jadwal', 'Realisasi', 'Dosen'], pakaiPer: true,
+  st: { pola: 'Reguler', kelas: {}, mulai: '', minggu: 1, judul: null, ttd: null, kotor: false },
+  f() { const s = this.st; return { pola: s.pola, kelas: Object.keys(s.kelas).filter(k => s.kelas[k]), mulai: s.mulai, minggu: s.minggu }; },
+  mulaiBawaan(per) {
+    const rg = Dom.rentang(per) || {}, hariIni = isoTgl();
+    const dalam = (!rg.mulai || hariIni >= rg.mulai) && (!rg.selesai || hariIni <= rg.selesai);
+    return isoTgl(Doc.senin(dalam || !rg.mulai ? hariIni : rg.mulai));
+  },
+  render() {
+    const s = this.st, per = App.perAktif();
+    const head = kepala({ crumb: ['Cetak', 'Cetak Kehadiran Dosen'], judul: 'Cetak Kehadiran Dosen', desc: 'Daftar kehadiran mingguan dosen sesuai jadwal tersimpan: mata kuliah, total SKS, dan kotak kehadiran per hari. Satu lembar A4 landscape per pekan.',
+      aksi: App.perToggle() + btnRefresh(false) + '<button class="btn" data-a="excel" ' + (Dom.adaJadwal(per) ? '' : 'disabled') + '>' + ic('sheet') + 'Simpan Excel</button><button class="btn btn-primary" data-a="cetak" ' + (Dom.adaJadwal(per) ? '' : 'disabled') + '>' + ic('printer') + 'Pratinjau &amp; Cetak</button>' });
+    if (!Dom.adaJadwal(per)) { this.el.innerHTML = head + belumAdaJadwal(per); return; }
+    if (!s.mulai) s.mulai = this.mulaiBawaan(per);
+    const t = Tata.nilai('HADIR_DOSEN');
+    if (s.judul === null) s.judul = t.judul || 'Daftar Kehadiran Dosen Tetap';
+    if (!s.ttd) s.ttd = (Array.isArray(t.ttd) && t.ttd.length ? t.ttd : Tata.ttdHadirBawaan()).map(x => ({ jabatan: x.jabatan || '', nama: x.nama || '' }));
+    const kelasPola = Dom.kelasTerjadwal().filter(k => s.pola === 'Semua' || k.Pola === s.pola);
+    Object.keys(s.kelas).forEach(k => { if (!kelasPola.some(x => x.Nama === k)) delete s.kelas[k]; });
+    const data = Doc.hadirData(per, this.f()), senin = Doc.senin(s.mulai), sabtu = new Date(senin.getTime() + 5 * 864e5), akhir = new Date(senin.getTime() + ((s.minggu - 1) * 7 + 5) * 864e5);
+    const hari = s.pola === 'Hybrid' ? Dom.hariPola('Hybrid') : Doc.HADIR_HARI;
+    const totSks = data.reduce((a, d) => a + d.total, 0), nKls = Object.values(s.kelas).filter(Boolean).length;
+    this.el.innerHTML = head +
+      '<div class="kpis">' + kpi({ lb: 'Dosen Tercantum', vl: data.length + '<small>dosen</small>', ic: 'usercheck' }) + kpi({ lb: 'Total SKS / Pekan', vl: totSks + '<small>SKS</small>', ic: 'clock' }) +
+      kpi({ lb: 'Jumlah Lembar', vl: s.minggu + '<small>pekan · A4 landscape</small>', ic: 'filetext' }) + kpi({ lb: 'Rentang', vl: '<span style="font-size:15px">' + esc(fmtTgl(senin)) + '</span>', ic: 'cal', ft: 's.d. ' + esc(fmtHariTgl(akhir)) }) + '</div>' +
+      '<div class="grid2"><div class="card"><div class="card-h"><h3>' + ic('filter') + 'Parameter</h3></div><div class="card-b stack">' +
+      '<div class="field"><label>Pola jam</label><div class="seg">' + [['Reguler', 'Reguler (+ Ma\'had Aly)'], ['Hybrid', 'Hybrid'], ['Semua', 'Semua']].map(x => '<button data-a="pola" data-v="' + x[0] + '" class="' + (s.pola === x[0] ? 'on' : '') + '">' + x[1] + '</button>').join('') + '</div>' +
+        '<span class="help">' + (s.pola === 'Reguler' ? 'Kelas Reguler, Ma\'had Aly Ikhwan & Akhwat (Senin – Sabtu).' : s.pola === 'Hybrid' ? 'Kelas Hybrid (Jumat & Sabtu).' : 'Seluruh kelas terjadwal.') + '</span></div>' +
+      '<div class="field"><label>Kelas <small class="faint">(kosong = semua kelas pola ini)</small></label><div class="row gap-s">' + kelasPola.map(k => '<button class="chip ' + (s.kelas[k.Nama] ? 'on' : '') + '" data-a="kelas" data-v="' + attr(k.Nama) + '">' + esc(k.Nama) + '</button>').join('') + '</div></div>' +
+      '<div class="fgrid c2"><div class="field"><label>Pekan mulai (Senin)</label><input type="date" class="input" data-ch="mulai" value="' + attr(s.mulai) + '"><span class="help">' + esc(fmtHariTgl(senin) + ' – ' + fmtHariTgl(sabtu)) + '</span></div>' +
+      '<div class="field"><label>Jumlah pekan</label><input type="number" min="1" max="20" class="input" data-ch="minggu" value="' + s.minggu + '"><span class="help">1 lembar per pekan (maks. 20)</span></div></div></div></div>' +
+      '<div class="card"><div class="card-h"><h3>' + ic('edit') + 'Judul &amp; Penanda Tangan</h3><span class="sp"></span>' + (s.kotor ? '<button class="btn btn-sm btn-primary" data-a="simpanBawaan">' + ic('save', 'ic-sm') + 'Jadikan bawaan</button>' : '<span class="faint">tersimpan</span>') + '</div><div class="card-b stack">' +
+      '<div class="field"><label>Judul dokumen</label><input class="input" data-in="judul" maxlength="120" value="' + attr(s.judul) + '"><span class="help">Dicetak: “' + esc(s.judul) + ' Semester ' + esc(Dom.perObj(per).smt) + ' Tahun Akademik ' + esc(Dom.perObj(per).ta) + '”</span></div>' +
+      s.ttd.map((x, i) => '<div class="row" style="flex-wrap:nowrap;gap:8px"><input class="input" data-in="ttdJ" data-i="' + i + '" value="' + attr(x.jabatan) + '" placeholder="Jabatan"><input class="input" data-in="ttdN" data-i="' + i + '" value="' + attr(x.nama) + '" placeholder="Nama (kosong = titik-titik)"><button class="btn btn-icon btn-ghost" data-a="hapusTtd" data-i="' + i + '" title="Hapus">' + ic('trash', 'ic-sm') + '</button></div>').join('') +
+      (s.ttd.length < 4 ? '<div><button class="btn btn-sm" data-a="tambahTtd">' + ic('plus', 'ic-sm') + 'Tambah penanda tangan</button></div>' : '') + '</div></div></div>' +
+      '<div class="card" style="margin-top:16px"><div class="card-h"><h3>' + ic('users') + 'Ringkasan Kehadiran per Pekan</h3><span class="sp"></span><span class="faint">' + data.length + ' dosen' + (nKls ? ' · ' + nKls + ' kelas dipilih' : '') + '</span></div>' +
+      '<div class="tbl-wrap"><table class="tbl compact"><thead><tr><th class="num">No</th><th>Nama</th><th>Prodi</th><th>SKS</th><th>Mata Kuliah</th>' + hari.map(h => '<th class="center">' + h + '</th>').join('') + '</tr></thead><tbody>' +
+      (data.map((d, i) => '<tr><td class="num">' + (i + 1) + '</td><td><b>' + esc(d.nama) + '</b></td><td>' + esc(d.prodi.join(', ')) + '</td><td><b>' + d.total + '</b></td><td class="t-sub" style="max-width:320px">' + esc(d.mk.join(', ')) + '</td>' +
+        hari.map(h => '<td class="center">' + (d.hari[h] ? '<span class="badge info sq">' + d.hari[h] + '</span>' : '<span class="faint">·</span>') + '</td>').join('') + '</tr>').join('') ||
+        '<tr><td colspan="' + (5 + hari.length) + '">' + kosong('Tidak ada dosen berjadwal pada pilihan ini.', 'users') + '</td></tr>') + '</tbody></table></div></div>';
+  },
+  ubahTata() { return { judul: this.st.judul, ttd: this.st.ttd.map(x => ({ jabatan: x.jabatan, nama: x.nama })) }; },
+  buka() {
+    const s = this.st, per = App.perAktif(), f = this.f();
+    Cetak.buka({ judul: 'Pratinjau — Kehadiran Dosen', sub: (s.pola === 'Semua' ? 'Semua kelas' : 'Pola ' + s.pola) + ' · ' + s.minggu + ' pekan · ' + Dom.perLabel(per), periode: per, folder: 'Kehadiran Dosen', prefix: 'HDS', jenis: 'HADIR_DOSEN',
+      orientasi: 'landscape', bisaOrientasi: false, simpan: 'per', tata: 'HADIR_DOSEN', tataUbah: this.ubahTata(),
+      buat: (ctx) => [Doc.hadirDosen(per, f, ctx)] });
+  },
+  async excel() {
+    const s = this.st, per = App.perAktif(), p = Dom.perObj(per), t = Tata.nilai('HADIR_DOSEN', this.ubahTata()), f = this.f(), data = Doc.hadirData(per, f);
+    const hari = s.pola === 'Hybrid' ? Dom.hariPola('Hybrid') : Doc.HADIR_HARI.filter(h => h !== 'Sabtu' || num(t.selSabtu, 4) > 0 || data.some(d => d.hari.Sabtu));
+    const sel = {}; hari.forEach(h => { sel[h] = Math.max(1, h === 'Sabtu' && s.pola !== 'Hybrid' ? num(t.selSabtu, 4) : num(t.sel, 6), ...data.map(d => d.hari[h] || 0)); });
+    const nSel = hari.reduce((a, h) => a + sel[h], 0), lebarKol = 5 + nSel + 2;
+    const sheets = Array.from({ length: Math.max(1, Math.min(20, s.minggu)) }, (_, m) => {
+      const s0 = new Date(Doc.senin(s.mulai).getTime() + m * 7 * 864e5), tg = (h) => new Date(s0.getTime() + Doc.HADIR_HARI.indexOf(h) * 864e5);
+      const rows = [[Doc.kampus()], [s.judul + ' Semester ' + p.smt + ' Tahun Akademik ' + p.ta], [fmtHariTgl(tg(hari[0])) + ' - ' + fmtHariTgl(tg(hari[hari.length - 1]))], []];
+      const hd = ['No', 'Nama', 'Prodi', 'Sks', 'Mata kuliah']; hari.forEach(h => { hd.push(h); for (let i = 1; i < sel[h]; i++) hd.push(''); }); hd.push('Total', 'ket'); rows.push(hd);
+      data.forEach((d, i) => { const r = [i + 1, d.nama, d.prodi.join(','), d.total, d.mk.join(', ')]; hari.forEach(h => { for (let k = 0; k < sel[h]; k++) r.push(t.centang && k < (d.hari[h] || 0) ? '✓' : ''); }); r.push(d.total, ''); rows.push(r); });
+      rows.push([]); rows.push(s.ttd.map(x => x.jabatan)); rows.push([]); rows.push([]); rows.push(s.ttd.map(x => x.nama || '……………………'));
+      const merge = [0, 1, 2].map(r => ({ s: { r, c: 0 }, e: { r, c: lebarKol - 1 } })); let c = 5; hari.forEach(h => { if (sel[h] > 1) merge.push({ s: { r: 4, c }, e: { r: 4, c: c + sel[h] - 1 } }); c += sel[h]; });
+      return { nama: 'Pekan ' + (m + 1) + ' ' + isoTgl(s0).slice(5), rows, merge, lebar: [4, 34, 14, 5, 40].concat(Array.from({ length: nSel }, () => 3)).concat([6, 6]) };
+    });
+    await Excel.tulis('Kehadiran Dosen ' + (s.pola === 'Semua' ? 'Semua' : s.pola) + ' ' + Dom.perLabel(per).replace('/', '-'), sheets);
+  },
+  acts: {
+    pola(b) { this.st.pola = b.dataset.v; this.render(); },
+    kelas(b) { const k = b.dataset.v; this.st.kelas[k] = !this.st.kelas[k]; this.render(); },
+    tambahTtd() { this.st.ttd.push({ jabatan: '', nama: '' }); this.st.kotor = true; this.render(); },
+    hapusTtd(b) { this.st.ttd.splice(+b.dataset.i, 1); this.st.kotor = true; this.render(); },
+    async simpanBawaan(b) {
+      const nilai = Object.assign({}, (Dom.setJson('TATA_CETAK', {}) || {}).HADIR_DOSEN || {}, this.ubahTata());
+      const r = await denganSibuk(b, 'Menyimpan…', () => api('cetak.tata', { jenis: 'HADIR_DOSEN', nilai }));
+      if (r.success) { this.st.kotor = false; toast(r.message); this.render(); }
+    },
+    cetak() { this.buka(); },
+    excel(b) { denganSibuk(b, 'Menyusun…', () => this.excel()); }
+  },
+  ch: {
+    mulai(t) { this.st.mulai = t.value ? isoTgl(Doc.senin(t.value)) : ''; this.render(); },
+    minggu(t) { this.st.minggu = Math.max(1, Math.min(20, Math.round(num(t.value, 1)))); this.render(); }
+  },
+  inp: {
+    judul(t) { this.st.judul = t.value; this.st.kotor = true; if (!$('[data-a="simpanBawaan"]', this.el)) this.tandaiKotor(); },
+    ttdJ(t) { this.st.ttd[+t.dataset.i].jabatan = t.value; this.st.kotor = true; if (!$('[data-a="simpanBawaan"]', this.el)) this.tandaiKotor(); },
+    ttdN(t) { this.st.ttd[+t.dataset.i].nama = t.value; this.st.kotor = true; if (!$('[data-a="simpanBawaan"]', this.el)) this.tandaiKotor(); }
+  },
+  tandaiKotor() { const sp = $$('.card-h .faint', this.el).find(x => x.textContent === 'tersimpan'); if (sp) sp.outerHTML = '<button class="btn btn-sm btn-primary" data-a="simpanBawaan">' + ic('save', 'ic-sm') + 'Jadikan bawaan</button>'; }
 });
 
 /* =====================================================================
@@ -292,8 +428,8 @@ defPage('cetak-kitab', {
     hapus(b) { this.st.kitab.splice(+b.dataset.i, 1); this.render(); },
     cetak() {
       const s = this.st, per = App.perAktif(), rb = Dom.rombelMhs(per).find(r => r.key === s.rb); if (!rb) return;
-      Cetak.buka({ judul: 'Pratinjau — Absensi Penerima Kitab', sub: Dom.rombelLabel(rb.prodi, rb.angkatan, rb.kelas, per, true) + ' · ' + s.kitab.length + ' kitab', periode: per, folder: 'Penerima Kitab', prefix: 'KTB', jenis: 'PENERIMA_KITAB', orientasi: s.or, simpan: 'per',
-        buat: (ctx) => [Doc.kitab(rb, per, { tanggal: s.tanggal, lokasi: s.lokasi, kitab: s.kitab, orient: ctx.orient })] });
+      Cetak.buka({ judul: 'Pratinjau — Absensi Penerima Kitab', sub: Dom.rombelLabel(rb.prodi, rb.angkatan, rb.kelas, per, true) + ' · ' + s.kitab.length + ' kitab', periode: per, folder: 'Penerima Kitab', prefix: 'KTB', jenis: 'PENERIMA_KITAB', orientasi: s.or, simpan: 'per', tata: 'PENERIMA_KITAB',
+        buat: (ctx) => [Doc.kitab(rb, per, { tanggal: s.tanggal, lokasi: s.lokasi, kitab: s.kitab, orient: ctx.orient }, ctx)] });
     }
   },
   ch: { rb(t) { this.st.rb = t.value; this.render(); }, tanggal(t) { this.st.tanggal = t.value; this.render(); } },
