@@ -2,7 +2,7 @@
    PENJADWALAN AL WAFA — pages-cetak.js
    Cetak Jadwal (Per Kelas, Per Dosen, Seluruh), Surat Tugas, Absensi
    Mahasiswa, Daftar Hadir (mahasiswa/dosen), Kehadiran Dosen, Penerima
-   Kitab, Penilaian Tahfidz, Dokumen dari Template.
+   Kitab, Penilaian Tahfidz, Kehadiran Ujian, Dokumen dari Template.
    Semua tombol Cetak membuka pratinjau terlebih dahulu.
    ===================================================================== */
 'use strict';
@@ -568,6 +568,131 @@ defPage('cetak-tahfidz', {
       k[t.dataset.f] = t.dataset.f === 'bobot' ? num(t.value, 0) : t.value; this.tandaiKotor();
       const el = $('#nt-total', this.el); if (el) el.textContent = Math.round(this.isi().komponen.reduce((a, x) => a + num(x.bobot, 0), 0) * 100) / 100;
     }
+  }
+});
+
+/* =====================================================================
+   CETAK KEHADIRAN UJIAN (v1.3) — daftar hadir UTS/UAS per prodi · angkatan,
+   kolom per hari ujian (MK & dosen), filter sama dengan Penilaian Tahfidz
+   ===================================================================== */
+defPage('cetak-hadir-ujian', {
+  deps: ['Ujian', 'Mahasiswa', 'Kelas', 'Prodi', 'Dosen', 'Realisasi', 'Kurikulum', 'Angkatan', 'Kalender', 'Aset', 'Pengaturan'], refreshTabel: ['Ujian', 'Mahasiswa', 'Realisasi'], pakaiPer: true,
+  st: { jenis: '', jk: '', ang: null, prodi: null, kelas: null, pilih: {}, mulai: {} },
+  angPilih() { const a = Dom.angkatanAktif(); return this.st.ang ? a.filter(th => this.st.ang[th]) : a; },
+  prodiPilih() { const p = Dom.prodi(); return this.st.prodi ? p.filter(x => this.st.prodi[x.Kode]) : p; },
+  kelasOk(k) { return this.st.kelas ? !!this.st.kelas[k] : Dom.kelasPola(k) !== 'Tidak dijadwalkan'; },
+  ujianRows(per, jenis) { return DB.rows('Ujian').filter(j => j.TA + ' ' + j.Semester === per && j.Jenis === jenis); },
+  /** Pilihan pengguna; bila belum memilih: UAS bila jadwal UAS sudah ada, selain itu UTS. */
+  jenis(per) { const s = this.st; return s.jenis || (this.ujianRows(per, 'UAS').length || !this.ujianRows(per, 'UTS').length ? 'UAS' : 'UTS'); },
+  /** Senin pekan ujian: isian layar → kegiatan Kalender Akademik (UTS/UAS) periode ini → kosong. */
+  mulai(per, jenis) {
+    const k = per + '|' + jenis; if (this.st.mulai[k] !== undefined) return this.st.mulai[k];
+    const p = Dom.perObj(per), pola = jenis === 'UAS' ? /\bUAS\b|ujian akhir/i : /\bUTS\b|ujian tengah/i;
+    const keg = DB.rows('Kalender').filter(x => x.TA === p.ta && x.Semester === p.smt && pola.test(x.Nama) && x.Mulai).sort(by('Mulai'))[0];
+    return keg ? isoTgl(Doc.senin(keg.Mulai)) : '';
+  },
+  /** Lembar = prodi · angkatan; kelas digabung bila jadwal ujiannya sama persis, selain itu dipisah per kelas. */
+  lembar(per) {
+    const s = this.st, jenis = this.jenis(per), um = Dom.unitMap(per), per0 = new Map(), out = [];
+    this.ujianRows(per, jenis).forEach(j => { const u = um.get(j.RealisasiID); if (!u || u.tahfidz || !j.Hari) return; if (!per0.has(u.rombel)) per0.set(u.rombel, []); per0.get(u.rombel).push({ u, hari: j.Hari, sesi: j.Sesi }); });
+    this.prodiPilih().forEach(p => this.angPilih().forEach(th => {
+      const mhs = Dom.mhsAktif().filter(m => m.Cocok === 'YA' && m.Prodi === p.Kode && m.Angkatan === String(th) && this.kelasOk(m.Kelas) && (!s.jk || m.JK === s.jk));
+      if (!mhs.length) return;
+      const grup = new Map();
+      [...new Set(mhs.map(m => m.Kelas))].sort((a, b) => num(Dom.kelasObj(a).Urutan, 99) - num(Dom.kelasObj(b).Urutan, 99)).forEach(k => {
+        const ex = per0.get(p.Kode + '|' + th + '|' + k) || [], sig = ex.map(e => String(e.u.kur.KodeMK).toUpperCase() + '@' + e.hari + '|' + e.sesi).sort().join(',');
+        const g = (Dom.kelasPola(k) === 'Hybrid' ? 'H:' : 'R:') + sig;
+        if (!grup.has(g)) grup.set(g, { kelas: [], ujian: ex, pola: Dom.kelasPola(k) === 'Hybrid' ? 'Hybrid' : 'Reguler' });
+        grup.get(g).kelas.push(k);
+      });
+      const pisah = grup.size > 1;
+      grup.forEach(g => {
+        const ks = new Set(g.kelas);
+        out.push({ key: p.Kode + '|' + th + '|' + g.kelas.join('+'), prodi: p.Kode, angkatan: String(th), smt: Dom.semMhs(th, per), kelas: g.kelas, tampilKelas: pisah, pola: g.pola, ujian: g.ujian,
+          mhs: mhs.filter(m => ks.has(m.Kelas)).sort((a, b) => norm(a.Nama).localeCompare(norm(b.Nama))) });
+      });
+    }));
+    return out;
+  },
+  render() {
+    const s = this.st, per = App.perAktif(), jenis = this.jenis(per), mulai = this.mulai(per, jenis), list = this.lembar(per);
+    const bisa = (l) => l.ujian.length > 0, terpilih = list.filter(l => bisa(l) && s.pilih[l.key] !== false), nUj = this.ujianRows(per, jenis).length;
+    const aktif = Dom.angkatanAktif(), angSel = new Set(this.angPilih()), prSel = new Set(this.prodiPilih().map(p => p.Kode));
+    const kelasMhs = [...new Set(Dom.mhsAktif().map(m => m.Kelas).filter(Boolean))].sort((a, b) => num(Dom.kelasObj(a).Urutan, 99) - num(Dom.kelasObj(b).Urutan, 99));
+    const sn = mulai ? Doc.senin(mulai) : null, sb = sn ? new Date(sn.getTime() + 5 * 864e5) : null;
+    this.el.innerHTML = kepala({ crumb: ['Cetak', 'Cetak Kehadiran Ujian'], judul: 'Cetak Kehadiran Ujian', desc: 'Daftar hadir ujian (UTS/UAS) satu lembar A4 landscape per program studi · angkatan: kolom per hari berisi mata kuliah & dosen sesuai jadwal ujian tersimpan.',
+        aksi: App.perToggle() + btnRefresh(false) + '<button class="btn" data-a="excel" ' + (terpilih.length ? '' : 'disabled') + '>' + ic('sheet') + 'Simpan Excel</button><button class="btn btn-primary" data-a="cetak" ' + (terpilih.length ? '' : 'disabled') + '>' + ic('printer') + 'Cetak ' + terpilih.length + ' Lembar Terpilih</button>' }) +
+      (!nUj ? '<div class="alert warn">' + ic('alert') + '<div style="flex:1">Jadwal <b>' + jenis + '</b> ' + esc(Dom.perLabel(per)) + ' belum disimpan. Susun dan simpan di menu Generate Ujian terlebih dahulu' + (App.periode.persiapan ? ', atau ganti periode di kanan atas' : '') + '.</div><button class="btn btn-sm" data-a="nav" data-to="ujian">' + ic('clipboard', 'ic-sm') + 'Buka Generate Ujian</button></div>' : '') +
+      '<div class="kpis">' + kpi({ lb: 'Lembar Daftar Hadir', vl: terpilih.length + '<small>dari ' + list.length + ' lembar</small>', ic: 'filetext', ft: '1 lembar = 1 prodi · 1 angkatan' }) + kpi({ lb: 'Peserta', vl: terpilih.reduce((a, l) => a + l.mhs.length, 0) + '<small>' + (s.jk === 'L' ? 'mahasiswa' : s.jk === 'P' ? 'mahasiswi' : 'mahasiswa/i') + '</small>', ic: 'users' }) +
+        kpi({ lb: 'Mata Kuliah Diujikan', vl: nUj + '<small>MK · ' + jenis + '</small>', ic: 'clipboard', cls: nUj ? '' : 'orange' }) + kpi({ lb: 'Pekan Ujian', vl: '<span style="font-size:15px">' + (sn ? esc(fmtTgl(sn)) : 'Tanggal belum diisi') + '</span>', ic: 'cal', ft: sb ? 's.d. ' + esc(fmtHariTgl(sb)) : 'Kolom hari dicetak tanpa tanggal' }) + '</div>' +
+      '<div class="grid2"><div class="card"><div class="card-h"><h3>' + ic('filter') + 'Filter Peserta</h3><span class="sp"></span><button class="link-btn" data-a="resetF">Reset</button></div><div class="card-b stack">' +
+        '<div class="field"><label>Jenis kelamin</label>' + jkSeg(s.jk) + '</div>' +
+        '<div class="field"><label>Tahun angkatan <span class="faint">(pilih satu atau beberapa)</span></label><div class="row gap-s">' + aktif.map(th => '<button class="chip ' + (angSel.has(th) ? 'on' : '') + '" data-a="ang" data-v="' + th + '">' + (angSel.has(th) ? ic('check', 'ic-sm') : '') + 'Angkatan ' + th + ' <small>(Smt ' + Dom.semMhs(th, per) + ')</small></button>').join('') + '</div></div>' +
+        '<div class="field"><label>Program studi</label><div class="row gap-s">' + Dom.prodi().map(p => '<button class="chip ' + (prSel.has(p.Kode) ? 'on' : '') + '" data-a="prodiT" data-v="' + attr(p.Kode) + '">' + dotProdi(p.Kode) + ' ' + esc(p.Kode) + '</button>').join('') + '</div></div>' +
+        '<div class="field"><label>Program kelas <span class="faint">(bawaan: semua kelas terjadwal)</span></label><div class="row gap-s">' + kelasMhs.map(k => '<button class="chip ' + (this.kelasOk(k) ? 'on' : '') + '" data-a="kelasT" data-v="' + attr(k) + '">' + esc(k) + '</button>').join('') + '</div></div></div></div>' +
+      '<div class="card"><div class="card-h"><h3>' + ic('clipboard') + 'Ujian</h3></div><div class="card-b stack">' +
+        '<div class="field"><label>Jenis ujian</label><div class="seg">' + [['UTS', 'UTS (Tengah Semester)'], ['UAS', 'UAS (Akhir Semester)']].map(u => '<button data-a="jenis" data-v="' + u[0] + '" class="' + (jenis === u[0] ? 'on' : '') + '">' + u[1] + ' <small>(' + this.ujianRows(per, u[0]).length + ' MK)</small></button>').join('') + '</div></div>' +
+        '<div class="field"><label>Pekan ujian mulai (Senin)</label><input type="date" class="input" data-ch="mulai" value="' + attr(mulai) + '"><span class="help">' + (sn ? esc(fmtHariTgl(sn) + ' – ' + fmtHariTgl(sb)) + ' · tanggal tampil di kepala kolom hari' : 'Kosongkan bila kolom hari dicetak tanpa tanggal. Terisi otomatis bila ada kegiatan ' + jenis + ' di Kalender Akademik.') + '</span></div>' +
+        '<div class="alert info" style="margin:0">' + ic('info') + '<div>Kolom tiap hari memuat mata kuliah yang diujikan pada hari itu (urut sesi) beserta nama dosennya. Kelas dalam satu prodi · angkatan digabung bila jadwal ujiannya sama; bila berbeda, dicetak per kelas. Lebar kolom, jumlah kolom per hari, baris kosong, paraf pengawas, dan kop diatur lewat tombol <b>Tata Letak</b> di pratinjau.</div></div></div></div></div>' +
+      '<div class="card" style="margin-top:16px"><div class="card-h"><label class="chk"><input type="checkbox" data-ch="semua" ' + (terpilih.length && terpilih.length === list.filter(bisa).length ? 'checked' : '') + '> <b>Pilih semua lembar</b></label><span class="sp"></span><span class="faint">' + terpilih.length + ' dari ' + list.filter(bisa).length + ' lembar dipilih</span></div>' +
+        '<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:36px"></th><th>Program Studi</th><th>Angkatan · Semester</th><th>Kelas</th><th>Peserta</th><th>Mata Kuliah Diujikan</th><th class="right">Aksi</th></tr></thead><tbody>' +
+        (list.map(l => { const L = l.mhs.filter(m => m.JK === 'L').length, P = l.mhs.filter(m => m.JK === 'P').length, ok = bisa(l);
+          return '<tr' + (ok ? '' : ' style="opacity:.6"') + '><td><input type="checkbox" style="width:17px;height:17px;accent-color:var(--primary)" data-ch="pilih" data-v="' + attr(l.key) + '" ' + (ok && s.pilih[l.key] !== false ? 'checked' : '') + (ok ? '' : ' disabled') + '></td><td><b>' + dotProdi(l.prodi) + ' ' + esc(Dom.prodiNama(l.prodi)) + '</b></td><td>Angkatan ' + esc(l.angkatan) + ' · <b>Semester ' + l.smt + '</b></td>' +
+            '<td>' + l.kelas.map(badgeKelas).join(' ') + (l.tampilKelas ? '<div class="t-sub">jadwal ujian berbeda → lembar terpisah</div>' : '') + '</td><td><b>' + l.mhs.length + '</b> <span class="faint">(L:' + L + ' · P:' + P + ')</span></td>' +
+            '<td>' + (ok ? '<b>' + l.ujian.length + '</b> MK <div class="t-sub">' + esc([...new Set(l.ujian.map(e => e.hari))].sort((a, b) => Doc.HADIR_HARI.indexOf(a) - Doc.HADIR_HARI.indexOf(b)).join(', ')) + '</div>' : '<span class="badge warn">Belum ada jadwal ' + jenis + '</span>') + '</td>' +
+            '<td class="right">' + (ok ? '<button class="btn btn-sm btn-soft" data-a="lihat" data-v="' + attr(l.key) + '">' + ic('eye', 'ic-sm') + 'Pratinjau &amp; Cetak</button>' : '') + '</td></tr>'; }).join('') ||
+          '<tr><td colspan="7">' + kosong('Tidak ada mahasiswa aktif pada filter ini. Pilih jenis kelamin, angkatan, atau prodi lain.', 'users') + '</td></tr>') + '</tbody></table></div></div>';
+  },
+  f() { const s = this.st, per = App.perAktif(), jenis = this.jenis(per); return { jenis, jk: s.jk, mulai: this.mulai(per, jenis) }; },
+  buka(keys) {
+    const s = this.st, per = App.perAktif(), f = this.f(), l = this.lembar(per).filter(x => x.ujian.length && keys.includes(x.key));
+    if (!l.length) return;
+    const jkT = s.jk === 'L' ? ' Laki-laki' : s.jk === 'P' ? ' Perempuan' : '';
+    Cetak.buka({ judul: 'Pratinjau — Daftar Hadir ' + f.jenis, sub: l.length + ' lembar' + jkT + ' · ' + Dom.perLabel(per) + ' · A4 Landscape', periode: per, folder: 'Kehadiran Ujian', prefix: 'HDU', jenis: 'HADIR_UJIAN', orientasi: 'landscape',
+      simpan: l.length === 1 ? 'per' : 'gabung', tata: 'HADIR_UJIAN',
+      namaFile: 'Daftar Hadir ' + f.jenis + jkT + ' (' + l.length + ' lembar) — ' + Dom.perLabel(per).replace('/', '-'),
+      dok: { judul: 'Daftar Hadir ' + f.jenis + jkT + ' — ' + l.length + ' lembar', ringkasan: { jumlah: l.length + ' lembar', peserta: l.reduce((a, x) => a + x.mhs.length, 0) + ' mahasiswa' + jkT } },
+      buat: (ctx) => l.map(x => Doc.hadirUjian(x, per, Object.assign({}, f, { orient: ctx.orient }), ctx)) });
+  },
+  async excel(btn) {
+    const s = this.st, per = App.perAktif(), p = Dom.perObj(per), f = this.f(), t = Tata.nilai('HADIR_UJIAN'), l = this.lembar(per).filter(x => x.ujian.length && s.pilih[x.key] !== false);
+    if (!l.length) return;
+    const namaUj = f.jenis === 'UAS' ? 'UJIAN AKHIR SEMESTER' : 'UJIAN TENGAH SEMESTER';
+    await denganSibuk(btn, 'Menyusun…', async () => {
+      const sheets = l.map(lb => {
+        const hari = Doc.hariUjian(lb, t), nSel = hari.reduce((a, d) => a + d.n, 0), lebar = 2 + nSel + 1;
+        const lbl = (h) => { const d = Doc.tglHari(f.mulai, h); return h.toUpperCase() + (d ? ', ' + d.getDate() + ' ' + BULAN[d.getMonth()] + ' ' + d.getFullYear() : ''); };
+        const rows = [[Doc.kampus().toUpperCase()], ['PROGRAM STUDI ' + Dom.prodiNama(lb.prodi).toUpperCase()], ['DAFTAR HADIR ' + namaUj + ' ' + p.smt.toUpperCase()], ['TAHUN AKADEMIK ' + p.ta], [],
+          ['PROGRAM STUDI : ' + Dom.prodiNama(lb.prodi).toUpperCase()], ['SEMESTER : ' + lb.smt]].concat(lb.tampilKelas ? [['KELAS : ' + lb.kelas.join(', ')]] : []);
+        const h1 = rows.length, r1 = ['No', 'NAMA'], r2 = ['', ''], merge = [0, 1, 2, 3].map(r => ({ s: { r, c: 0 }, e: { r, c: lebar - 1 } }));
+        let c = 2;
+        hari.forEach(d => { r1.push(lbl(d.h)); for (let i = 1; i < d.n; i++) r1.push(''); for (let i = 0; i < d.n; i++) { const e = d.ex[i]; r2.push(e ? e.u.kur.NamaMK + '\n' + Dom.dosenTeks(e.u, ' / ') : ''); } if (d.n > 1) merge.push({ s: { r: h1, c }, e: { r: h1, c: c + d.n - 1 } }); c += d.n; });
+        r1.push('KETERANGAN'); r2.push(''); rows.push(r1, r2);
+        merge.push({ s: { r: h1, c: 0 }, e: { r: h1 + 1, c: 0 } }, { s: { r: h1, c: 1 }, e: { r: h1 + 1, c: 1 } }, { s: { r: h1, c: lebar - 1 }, e: { r: h1 + 1, c: lebar - 1 } });
+        lb.mhs.forEach((m, i) => rows.push([i + 1, m.Nama]));
+        for (let i = 0; i < Doc.kosongkan(t.kosong); i++) rows.push([lb.mhs.length + i + 1]);
+        for (let i = 0; i < Doc.kosongkan(t.polos); i++) rows.push(['']);
+        if (t.paraf !== false) { merge.push({ s: { r: rows.length, c: 0 }, e: { r: rows.length, c: 1 } }); rows.push(['PARAF PENGAWAS']); }
+        return { nama: lb.prodi + ' Smt ' + lb.smt + (lb.tampilKelas ? ' ' + lb.kelas.join('+') : ''), rows, merge, lebar: [5, 34].concat(Array.from({ length: nSel }, () => 13)).concat([14]) };
+      });
+      await Excel.tulis('Daftar Hadir ' + f.jenis + (s.jk === 'L' ? ' Laki-laki' : s.jk === 'P' ? ' Perempuan' : '') + ' — ' + Dom.perLabel(per).replace('/', '-'), sheets);
+    });
+  },
+  acts: {
+    jk(b) { this.st.jk = b.dataset.v; this.render(); },
+    jenis(b) { this.st.jenis = b.dataset.v; this.render(); },
+    ang(b) { const s = this.st, th = b.dataset.v; if (!s.ang) { s.ang = {}; Dom.angkatanAktif().forEach(a => { s.ang[a] = true; }); } s.ang[th] = !s.ang[th]; this.render(); },
+    prodiT(b) { const s = this.st, k = b.dataset.v; if (!s.prodi) { s.prodi = {}; Dom.prodi().forEach(p => { s.prodi[p.Kode] = true; }); } s.prodi[k] = !s.prodi[k]; this.render(); },
+    kelasT(b) { const s = this.st, k = b.dataset.v; if (!s.kelas) { s.kelas = {}; Dom.mhsAktif().forEach(m => { if (m.Kelas) s.kelas[m.Kelas] = Dom.kelasPola(m.Kelas) !== 'Tidak dijadwalkan'; }); } s.kelas[k] = !s.kelas[k]; this.render(); },
+    resetF() { Object.assign(this.st, { jk: '', ang: null, prodi: null, kelas: null, pilih: {} }); this.render(); },
+    lihat(b) { this.buka([b.dataset.v]); },
+    cetak() { const per = App.perAktif(); this.buka(this.lembar(per).filter(l => l.ujian.length && this.st.pilih[l.key] !== false).map(l => l.key)); },
+    excel(b) { this.excel(b); }
+  },
+  ch: {
+    pilih(t) { this.st.pilih[t.dataset.v] = t.checked; this.render(); },
+    semua(t) { this.lembar(App.perAktif()).forEach(l => { this.st.pilih[l.key] = t.checked; }); this.render(); },
+    mulai(t) { const per = App.perAktif(); this.st.mulai[per + '|' + this.jenis(per)] = t.value ? isoTgl(Doc.senin(t.value)) : ''; this.render(); }
   }
 });
 

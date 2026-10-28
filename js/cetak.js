@@ -180,7 +180,10 @@ const Tata = {
     PDDIKTI: { judul: 'Daftar MK PDDIKTI', kolom: [['no', 'No', 5], ['kode', 'Kode', 13], ['mk', 'Mata Kuliah', 36], ['sks', 'SKS PDDIKTI', 9], ['dosen', 'Dosen Pengampu', 37]],
       opsi: [['kop', 'Tampilkan kop surat', 'cek', true], ['baris', 'Tinggi baris', 'angka', 1.7, 1.2, 4, 0.05, '× huruf'], ['rekap', 'Halaman rekap SKS dosen', 'cek', true]] },
     NILAI_TAHFIDZ: { judul: 'Penilaian Tahfidz', kolom: [['no', 'No', 8], ['nama', 'Nama Mahasiswa', 38], ['nilai', 'Semua kolom nilai', 54]],
-      opsi: [['kop', 'Tampilkan kop surat', 'cek', true], ['baris', 'Tinggi baris', 'angka', 1.75, 1.2, 4, 0.05, '× huruf'], ['kosong', 'Baris kosong bernomor', 'angka', 2, 0, 10, 1, 'baris'], ['polos', 'Baris kosong tanpa nomor', 'angka', 2, 0, 10, 1, 'baris'], ['putus', 'Garis antarbaris putus-putus', 'cek', true], ['qr', 'QR verifikasi', 'cek', true]] }
+      opsi: [['kop', 'Tampilkan kop surat', 'cek', true], ['baris', 'Tinggi baris', 'angka', 1.75, 1.2, 4, 0.05, '× huruf'], ['kosong', 'Baris kosong bernomor', 'angka', 2, 0, 10, 1, 'baris'], ['polos', 'Baris kosong tanpa nomor', 'angka', 2, 0, 10, 1, 'baris'], ['putus', 'Garis antarbaris putus-putus', 'cek', true], ['qr', 'QR verifikasi', 'cek', true]] },
+    HADIR_UJIAN: { judul: 'Kehadiran Ujian', kolom: [['no', 'No', 3.5], ['nama', 'Nama', 22], ['ujian', 'Semua kolom ujian', 66], ['ket', 'Keterangan', 8.5]],
+      opsi: [['kop', 'Tampilkan kop surat', 'cek', false], ['baris', 'Tinggi baris', 'angka', 2.2, 1.4, 5, 0.1, '× huruf'], ['sel', 'Kolom per hari (minimum)', 'angka', 3, 1, 6, 1, 'kolom'], ['isi', 'Baris mengisi penuh halaman', 'cek', true], ['sabtu', 'Tampilkan kolom Sabtu (Reguler)', 'cek', true], ['jam', 'Tampilkan jam ujian', 'cek', false],
+        ['kosong', 'Baris kosong bernomor', 'angka', 2, 0, 10, 1, 'baris'], ['polos', 'Baris kosong tanpa nomor', 'angka', 2, 0, 10, 1, 'baris'], ['paraf', 'Baris paraf pengawas', 'cek', true], ['qr', 'QR verifikasi', 'cek', true]] }
   },
   bawaan(jenis) {
     const sp = this.SPEC[jenis], v = { kolom: {} };
@@ -575,6 +578,42 @@ const Doc = {
     return { judul: Dom.prodiNama(lb.prodi) + ' · Smt ' + lb.smt + jkT, nama: 'Nilai ' + ujian + ' Tahfidz ' + lb.prodi + ' Smt ' + lb.smt + ' Angkatan ' + lb.angkatan + jkT + ' — ' + Dom.perLabel(perKey).replace('/', '-'),
       halaman: [Cetak.halaman(html, f.orient === 'landscape', 'nt', { fs: 11.5, min: 6 })],
       dok: { kode, jenis: 'NILAI_TAHFIDZ', judul: 'Nilai ' + ujian + ' Tahfidz — ' + Dom.prodiNama(lb.prodi) + ' Semester ' + lb.smt + jkT, ringkasan: { prodi: Dom.prodiNama(lb.prodi), angkatan: lb.angkatan, semester: lb.smt, dosen: lb.dosen, jumlah: lb.mhs.length + ' mahasiswa' + jkT } } };
+  },
+
+  /* ---------- Kehadiran Ujian (v1.3): kolom per hari ujian, MK + dosen di kepala kolom ---------- */
+  /** Daftar hari kolom & isi ujian per hari untuk satu lembar. lb.ujian: [{u, hari, sesi}] */
+  hariUjian(lb, t) {
+    const base = lb.pola === 'Hybrid' ? Dom.hariPola('Hybrid') : this.HADIR_HARI.filter(h => h !== 'Sabtu' || t.sabtu !== false);
+    const ada = new Set(lb.ujian.map(e => e.hari));
+    const hari = this.HADIR_HARI.filter(h => base.includes(h) || ada.has(h));
+    return hari.map(h => { const ex = lb.ujian.filter(e => e.hari === h).sort((a, b) => num(a.sesi) - num(b.sesi)); return { h, ex, n: Math.max(1, Math.round(num(t.sel, 3)), ex.length) }; });
+  },
+  tglHari(mulai, h) { if (!mulai) return null; const s = this.senin(mulai); return new Date(s.getTime() + this.HADIR_HARI.indexOf(h) * 864e5); },
+  hadirUjian(lb, perKey, f, ctx) {
+    const t = this.tata('HADIR_UJIAN', ctx), p = Dom.perObj(perKey), kode = (ctx && ctx.kode) || Cetak.kode('HDU'), jenis = f.jenis === 'UTS' ? 'UTS' : 'UAS';
+    const namaUj = jenis === 'UAS' ? 'UJIAN AKHIR SEMESTER' : 'UJIAN TENGAH SEMESTER', hari = this.hariUjian(lb, t), nSel = hari.reduce((a, d) => a + d.n, 0);
+    const w = this.lebar(t, ['no', 'nama', 'ujian', 'ket']);
+    const lblHari = (h) => { const d = this.tglHari(f.mulai, h); return h.toUpperCase() + (d ? ', ' + d.getDate() + ' ' + BULAN[d.getMonth()] + ' ' + d.getFullYear() : ''); };
+    const col = '<colgroup><col style="width:' + w('no') + '"><col style="width:' + w('nama') + '">' + hari.map(d => Array.from({ length: d.n }, () => '<col style="width:' + w('ujian', nSel) + '">').join('')).join('') + '<col style="width:' + w('ket') + '"></colgroup>';
+    const head = '<thead><tr><th rowspan="2" class="no"></th><th rowspan="2">NAMA</th>' + hari.map(d => '<th colspan="' + d.n + '" class="hr">' + esc(lblHari(d.h)) + '</th>').join('') + '<th rowspan="2">KETERANGAN</th></tr><tr class="mkr">' +
+      hari.map(d => Array.from({ length: d.n }, (_, i) => { const e = d.ex[i]; if (!e) return '<th class="mk' + (i === 0 ? ' d0' : '') + '"></th>';
+        return '<th class="mk' + (i === 0 ? ' d0' : '') + '"><div class="m">' + esc(e.u.kur.NamaMK) + '</div>' + (t.jam ? '<div class="j">' + esc(Dom.jamSlot(e.u.pola, e.hari, e.sesi, true)) + '</div>' : '') + '<div class="ds">' + esc(Dom.dosenTeks(e.u, ' / ')) + '</div></th>'; }).join('')).join('') + '</tr></thead>';
+    const sel = hari.map(d => Array.from({ length: d.n }, (_, i) => '<td' + (i === 0 ? ' class="d0"' : '') + '></td>').join('')).join('');
+    const nKos = this.kosongkan(t.kosong), nPolos = this.kosongkan(t.polos);
+    const body = lb.mhs.map((m, i) => '<tr><td class="no">' + (i + 1) + '</td><td class="nm">' + esc(m.Nama) + '</td>' + sel + '<td></td></tr>').join('') +
+      Array.from({ length: nKos }, (_, i) => '<tr class="kos"><td class="no">' + (lb.mhs.length + i + 1) + '</td><td></td>' + sel + '<td></td></tr>').join('') +
+      Array.from({ length: nPolos }, () => '<tr class="kos"><td class="no"></td><td></td>' + sel + '<td></td></tr>').join('') +
+      (t.paraf !== false ? '<tr class="paraf"><td colspan="2">PARAF PENGAWAS</td>' + sel + '<td></td></tr>' : '');
+    const info = [['PROGRAM STUDI', Dom.prodiNama(lb.prodi).toUpperCase()], ['SEMESTER', String(lb.smt)]].concat(lb.tampilKelas ? [['KELAS', lb.kelas.join(', ')]] : []);
+    const html = (t.kop ? this.kop(t) : '') + '<div class="hu-h">' + (t.kop ? '' : '<div class="lg">' + Cetak.logo() + '</div>') + '<div class="tx">' + (t.kop ? '' : '<div class="s">' + esc(this.kampus().toUpperCase()) + '</div>') +
+        '<div class="s">PROGRAM STUDI ' + esc(Dom.prodiNama(lb.prodi).toUpperCase()) + '</div><div class="a">DAFTAR HADIR ' + namaUj + ' ' + esc(p.smt.toUpperCase()) + '</div><div class="a">TAHUN AKADEMIK ' + esc(p.ta) + '</div></div></div>' +
+      '<table class="hu-inf">' + info.map(x => '<tr><td>' + esc(x[0]) + '</td><td>: ' + esc(x[1]) + '</td></tr>').join('') + '</table>' +
+      '<div class="grow"><table class="t" style="--rh:' + num(t.baris, 2.2) + 'em' + (t.isi ? ';height:100%' : '') + '">' + col + head + '<tbody>' + body + '</tbody></table></div>' +
+      (t.qr !== false ? '<div class="hu-f">' + this.vbox(kode, 'Daftar hadir ' + jenis + ' resmi') + '</div>' : '');
+    const jkT = f.jk === 'L' ? ' (Laki-laki)' : f.jk === 'P' ? ' (Perempuan)' : '', klsT = lb.tampilKelas ? ' ' + lb.kelas.join('+') : '';
+    return { judul: Dom.prodiNama(lb.prodi) + ' · Smt ' + lb.smt + klsT + jkT, nama: 'Daftar Hadir ' + jenis + ' ' + lb.prodi + ' Smt ' + lb.smt + klsT + jkT + ' — ' + Dom.perLabel(perKey).replace('/', '-'),
+      halaman: [Cetak.halaman(html, f.orient !== 'portrait', 'hu', { fs: 10, min: 5 })],
+      dok: { kode, jenis: 'HADIR_UJIAN', judul: 'Daftar Hadir ' + jenis + ' — ' + Dom.prodiNama(lb.prodi) + ' Semester ' + lb.smt + klsT + jkT, ringkasan: { prodi: Dom.prodiNama(lb.prodi), semester: lb.smt, kelas: lb.kelas.join(', '), jumlah: lb.mhs.length + ' mahasiswa · ' + lb.ujian.length + ' MK' } } };
   },
 
   /* ---------- Kalender Akademik (A4 landscape, editor = pratinjau) ---------- */

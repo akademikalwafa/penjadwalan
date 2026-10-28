@@ -285,6 +285,34 @@
 .nt .nt-f { margin-top: auto; padding-top: .8em; }
 .nt .nt-f .vbox { font-family: 'Inter', Arial, sans-serif; }
 
+/* -------- Kehadiran Ujian (v1.3) — format daftar hadir UTS/UAS kampus -------- */
+.hu { color: #000; font-family: Tahoma, Verdana, 'Inter', Arial, sans-serif; }
+.hu .hu-h { position: relative; display: flex; justify-content: center; align-items: center; min-height: 4.4em; margin-bottom: .6em; }
+.hu .hu-h .lg { position: absolute; left: 0; top: 0; width: 4.4em; height: 4.4em; }
+.hu .hu-h .lg img, .hu .hu-h .lg svg { width: 100%; height: 100%; object-fit: contain; }
+.hu .hu-h .tx { text-align: center; line-height: 1.25; }
+.hu .hu-h .tx .s { font-family: 'Times New Roman', Times, serif; font-size: 1.25em; font-weight: 700; }
+.hu .hu-h .tx .a { font-family: Arial, Helvetica, sans-serif; font-size: 1.05em; font-weight: 700; }
+.hu table.hu-inf { width: auto; margin: 0 0 .4em .2em; font-weight: 700; font-family: Arial, Helvetica, sans-serif; font-size: 1.05em; }
+.hu table.hu-inf td { padding: 0 .4em 0 0; }
+.hu table.hu-inf td:first-child { width: 10em; }
+.hu table.t { border: 2px solid #000; }
+.hu table.t th { border: 1px solid #000; font-weight: 700; text-align: center; vertical-align: middle; padding: .35em .15em; font-size: .9em; }
+.hu table.t th.hr { border-left: 2px solid #000; border-right: 2px solid #000; border-bottom: 2px solid #000; font-size: .82em; letter-spacing: .02em; }
+.hu table.t thead tr:first-child th { border-bottom-width: 2px; }
+.hu table.t tr.mkr th { vertical-align: top; font-weight: 400; height: 5.4em; padding: .3em .15em; border-bottom: 2px solid #000; }
+.hu table.t tr.mkr th .m { font-size: .74em; line-height: 1.2; overflow-wrap: anywhere; }
+.hu table.t tr.mkr th .j { font-size: .66em; color: #374151; margin-top: .15em; }
+.hu table.t tr.mkr th .ds { font-size: .7em; line-height: 1.15; margin-top: .55em; overflow-wrap: anywhere; }
+.hu table.t td { border: 1px solid #000; height: var(--rh, 2.2em); padding: .05em .3em; font-size: .9em; }
+.hu table.t .d0 { border-left: 2px solid #000; }
+.hu table.t td.no { font-size: .78em; text-align: left; padding-left: .35em; }
+.hu table.t td.nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .86em; }
+.hu table.t tr.paraf td { border-top: 2px solid #000; height: calc(var(--rh, 2.2em) * 1.6); font-weight: 700; font-size: .78em; text-align: center; }
+.hu .grow { display: flex; flex-direction: column; }
+.hu .hu-f { margin-top: auto; padding-top: .5em; }
+.hu .hu-f .vbox { font-size: .7em; } .hu .hu-f .qr { width: 4.6em; height: 4.6em; }
+
 /* -------- Mode cetak browser -------- */
 @media print {
   @page { size: A4 portrait; margin: 0; }
