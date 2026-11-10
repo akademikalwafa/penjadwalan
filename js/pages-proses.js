@@ -190,6 +190,23 @@ const Seret = {
     root.addEventListener('contextmenu', e => { const card = e.target.closest('.sgc[data-k]'); if (card && root.contains(card)) { e.preventDefault(); const it = cfg.item(card.dataset.k); if (it) cfg.menu(it, e.clientX, e.clientY); } });
   }
 };
+/* (v1.4) Tampilan matriks: lebar penuh halaman, ukuran kartu, layar penuh, posisi gulir tetap setelah seret/render. */
+const GridView = {
+  _penuh: false,
+  pref() { const v = LS.get('pa:grid', null) || {}; return { ukuran: ['ringkas', 'normal', 'lebar'].includes(v.ukuran) ? v.ukuran : 'normal' }; },
+  setUkuran(v) { LS.set('pa:grid', { ukuran: v }); },
+  kelas() { const u = this.pref().ukuran; return u === 'normal' ? '' : ' uk-' + u; },
+  kontrol() {
+    const u = this.pref().ukuran;
+    return '<div class="gv-ktl"><div class="seg" title="Ukuran kartu matriks">' + [['ringkas', 'Ringkas'], ['normal', 'Normal'], ['lebar', 'Lebar']].map(x => '<button data-a="gvUkuran" data-v="' + x[0] + '" class="' + (u === x[0] ? 'on' : '') + '">' + x[1] + '</button>').join('') + '</div>' +
+      '<button class="btn btn-sm' + (this._penuh ? ' btn-primary' : '') + '" data-a="gvPenuh" title="' + (this._penuh ? 'Keluar layar penuh (Esc)' : 'Tampilkan matriks memenuhi layar') + '">' + ic(this._penuh ? 'collapse' : 'grid', 'ic-sm') + (this._penuh ? 'Keluar Layar Penuh' : 'Layar Penuh') + '</button></div>';
+  },
+  ambil(el, kunci) { const w = $('.sg-wrap', el); return w ? { x: w.scrollLeft, y: w.scrollTop, wy: window.scrollY, kunci } : null; },
+  pulih(el, g, kunci) { if (!g || g.kunci !== kunci) return; const w = $('.sg-wrap', el); if (w) { w.scrollLeft = g.x; w.scrollTop = g.y; } if (Math.abs(window.scrollY - g.wy) > 2) window.scrollTo(0, g.wy); },
+  terap(el) { el.classList.add('lebar'); const root = $('.card[data-gv]', el); if (root) root.classList.toggle('gv-penuh', this._penuh); document.body.classList.toggle('gv-penuh-on', !!(this._penuh && root)); },
+  lepas() { document.body.classList.remove('gv-penuh-on'); }
+};
+document.addEventListener('keydown', (e) => { if (e.key !== 'Escape' || !GridView._penuh || document.querySelector('.modal-back') || !App.cur || !App.cur.el || !App.cur.el.querySelector('.card.gv-penuh')) return; GridView._penuh = false; App.cur.render(); });
 const GridJ = {
   /** cfg: {slots, rombel:[{key,label,sub,warna}], isi:Map(rb#slot → [item]), kartu(item), filterHari, mhs(rb)} */
   tabel(cfg) {
@@ -237,7 +254,10 @@ defPage('jadwal', {
     if (wl && wl.map && wl.kotor) return [...wl.map.values()].filter(x => x.posisi === 'GRID').map(x => ({ uid: x.uid, hari: x.hari, sesi: x.sesi, pola: lain, RealisasiID: x.uid, Hari: x.hari, Sesi: x.sesi }));
     return Dom.jadwal(per, lain).filter(j => j.Posisi === 'GRID').map(j => ({ uid: j.RealisasiID, hari: j.Hari, sesi: j.Sesi, pola: lain, RealisasiID: j.RealisasiID, Hari: j.Hari, Sesi: j.Sesi }));
   },
+  hide() { GridView.lepas(); },
+  onShow() { GridView.terap(this.el); },
   render() {
+    const gul = GridView.ambil(this.el, 'jd|' + this.st.pola + '|' + this.st.hari);
     const s = this.st, pola = s.pola, per = App.periode.disusun.key, w = this.siapkan(), um = Dom.unitMap(per), slots = Dom.slots(pola);
     const items = [...w.map.values()], grid = items.filter(x => x.posisi === 'GRID'), luar = items.filter(x => x.posisi !== 'GRID');
     const cek = Dom.periksa(grid.map(x => ({ uid: x.uid, hari: x.hari, sesi: x.sesi, pola })).concat(this.entriLain()), per, pola);
@@ -262,12 +282,13 @@ defPage('jadwal', {
       '<select class="input" style="width:auto" data-ch="smt"><option value="">Semua Semester</option>' + opsi([...new Set(romAll.map(r => r.smt))].sort((a, b) => a - b).map(x => ({ v: String(x), l: 'Semester ' + x })), s.smt) + '</select></div>' +
       '<div class="row" style="margin-top:10px"><label class="chk"><input type="checkbox" data-ch="warna" ' + (s.warna ? 'checked' : '') + '> Kode Warna Dosen</label><label class="chk"><input type="checkbox" data-ch="hlgb" ' + (s.hlgb ? 'checked' : '') + '> Highlight Gabungan</label><span class="sp"></span>' +
       '<div class="legend">' + legDosen + '<span>' + ic('lock', 'ic-sm') + ' Slot terkunci</span><span><i style="background:var(--accent)"></i>Kelas gabungan</span><span>' + ic('users', 'ic-sm') + ' 2 dosen (tahfidz)</span></div></div></div>' +
-      '<div class="card" id="jg-root"><div class="card-h"><h3>' + ic('grid') + 'Matriks Penjadwalan Mingguan (' + esc(sesiTeks) + ')</h3><span class="sp"></span><span class="muted" style="font-size:12.5px">' + ic('grip', 'ic-sm') + ' Seret kartu untuk memindah sesi · klik kanan untuk opsi · layar sentuh: tekan lama lalu geser</span></div>' +
-      '<div class="sg-wrap">' + GridJ.tabel({ slots, rombel, isi, filterHari: s.hari, kelas: (s.warna ? 'warna ' : '') + (s.hlgb ? 'hl-gb' : ''), kartu: (x) => this.kartu(x, um, cek) }) + '</div>' +
+      '<div class="card" id="jg-root" data-gv="1"><div class="card-h"><h3>' + ic('grid') + 'Matriks Penjadwalan Mingguan (' + esc(sesiTeks) + ')</h3><span class="sp"></span><span class="muted" style="font-size:12.5px">' + ic('grip', 'ic-sm') + ' Seret kartu untuk memindah sesi · klik kanan untuk opsi · layar sentuh: tekan lama lalu geser</span>' + GridView.kontrol() + '</div>' +
+      '<div class="sg-wrap">' + GridJ.tabel({ slots, rombel, isi, filterHari: s.hari, kelas: (s.warna ? 'warna ' : '') + (s.hlgb ? 'hl-gb' : '') + GridView.kelas(), kartu: (x) => this.kartu(x, um, cek) }) + '</div>' +
       '<div class="card-h" style="border-top:1px solid var(--border);background:var(--warn-bg)"><h3>' + ic('alert') + 'Mata Kuliah di Luar Grid</h3><span class="badge ' + (luar.length ? 'warn' : 'ok') + '">' + luar.length + ' sesi</span><div class="sub">Dikelompokkan per prodi, semester, dan kelas. Seret kartu ke sel kosong di baris kelasnya, atau tarik kartu dari grid ke sini.</div></div>' +
       '<div class="tray" data-luar="1">' + this.baki(luar, um) + '</div></div>' +
       '<div class="alert info" style="margin-top:14px">' + ic('info') + '<div>Kartu yang dikunci (' + ic('lock', 'ic-sm') + ') tidak akan bergeser saat Generate Jadwal dijalankan ulang. Setelah disimpan, mata kuliah di grid menjadi <b>permanen</b> di Kurikulum.</div></div>';
     if (!this._seret) { this._seret = true; Seret.pasang(this.el, { item: (k) => this.w().map.get(k), bolehJatuh: (it, t) => this.boleh(it, t), alasanTolak: (it, t) => this.alasan(it, t), jatuh: (it, t) => this.jatuh(it, t), menu: (it, x, y) => this.menu(it, x, y) }); }
+    GridView.terap(this.el); GridView.pulih(this.el, gul, 'jd|' + s.pola + '|' + s.hari);
     App.savebar(this);
   },
   kartu(x, um, cek) {
@@ -433,7 +454,10 @@ defPage('ujian', {
     DB.rows('Ujian').filter(j => j.TA + ' ' + j.Semester === per && j.Jenis === this.st.jenis).forEach(j => w.map.set(j.RealisasiID, { k: j.RealisasiID, uid: j.RealisasiID, pola: j.Pola, hari: j.Hari, sesi: j.Sesi, catatan: j.Catatan, posisi: 'GRID' }));
     return w;
   },
+  hide() { GridView.lepas(); },
+  onShow() { GridView.terap(this.el); },
   render() {
+    const gul = GridView.ambil(this.el, 'uj|' + this.st.jenis + '|' + this.st.pola);
     const s = this.st, per = App.periode.disusun.key, adaJ = Dom.adaJadwal(per), um = Dom.unitMap(per);
     const head = kepala({ crumb: ['Proses', 'Generate Ujian', 'T.A. ' + App.periode.disusun.ta + ' (' + App.periode.disusun.smt + ')'], judul: 'Generate Ujian (UTS &amp; UAS)', badge: ' <span class="badge info sq">' + esc(Dom.perLabel(per)) + '</span>',
       desc: 'Penyusunan jadwal ujian otomatis yang mengikuti jadwal perkuliahan. Semua mata kuliah dianggap 2 SKS (90 menit); mata kuliah tahfidz tidak ditampilkan.',
@@ -459,8 +483,8 @@ defPage('ujian', {
       kpi({ lb: 'Bentrok Penguji', vl: cek.bentrok, ic: cek.bentrok ? 'alert' : 'shield', cls: cek.bentrok ? 'err' : 'ok', ft: cek.bentrok ? 'Geser kartu bertanda merah' : 'Tidak ada bentrok' }) + '</div>' +
       '<div class="card card-b" style="margin-bottom:14px"><div class="row"><div class="seg"><button data-a="pola" data-v="Reguler" class="' + (pola === 'Reguler' ? 'on' : '') + '">Pola Reguler &amp; Ma\'had Aly (Senin–Jumat)</button><button data-a="pola" data-v="Hybrid" class="' + (pola === 'Hybrid' ? 'on' : '') + '">Pola Hybrid (Jumat Sore–Sabtu)</button></div><span class="sp"></span>' +
       '<div class="legend">' + Dom.prodi().map(p => '<span><i style="background:' + p.Warna + ';border-radius:50%"></i>' + esc(p.Kode) + '</span>').join('') + '</div></div></div>' +
-      '<div class="card" id="uj-root"><div class="card-h"><h3>' + ic('grid') + 'Matriks Jadwal ' + (s.jenis === 'UTS' ? 'Ujian Tengah Semester' : 'Ujian Akhir Semester') + ' (Pola ' + pola + ')</h3><span class="sp"></span><span class="muted" style="font-size:12.5px">Standar durasi: 90 menit / sesi · seret kartu untuk mengubah</span></div>' +
-      '<div class="sg-wrap">' + (items.length ? GridJ.tabel({ slots, rombel, isi, kelas: 'warna', kartu }) : kosong('Belum ada jadwal ' + s.jenis + '. Tekan <b>Generate Ujian Otomatis</b>.', 'zap')) + '</div></div>' +
+      '<div class="card" id="uj-root" data-gv="1"><div class="card-h"><h3>' + ic('grid') + 'Matriks Jadwal ' + (s.jenis === 'UTS' ? 'Ujian Tengah Semester' : 'Ujian Akhir Semester') + ' (Pola ' + pola + ')</h3><span class="sp"></span><span class="muted" style="font-size:12.5px">Standar durasi: 90 menit / sesi · seret kartu untuk mengubah</span>' + GridView.kontrol() + '</div>' +
+      '<div class="sg-wrap">' + (items.length ? GridJ.tabel({ slots, rombel, isi, kelas: 'warna' + GridView.kelas(), kartu }) : kosong('Belum ada jadwal ' + s.jenis + '. Tekan <b>Generate Ujian Otomatis</b>.', 'zap')) + '</div></div>' +
       '<div class="card" style="margin-top:16px"><div class="card-h"><h3>' + ic('book') + 'Jadwal Ujian Tahfidz &amp; Imtihan Syafahi (Di Luar Jadwal Tertulis)</h3><span class="badge orange">PRD 5.11 Dikecualikan</span><div class="sub">Mata kuliah tahfidz tidak dicantumkan dalam lembar ujian tertulis; pengujian dilakukan melalui setoran langsung.</div></div>' +
       '<div class="tbl-wrap"><table class="tbl compact"><thead><tr><th>Mata Kuliah</th><th>Kelas / Prodi</th><th>Beban SKS</th><th>Penguji</th><th>Status</th></tr></thead><tbody>' +
       (tahfidz.map(u => '<tr><td><b>' + esc(u.kur.NamaMK) + '</b>' + (u.kur.NamaArab ? '<div class="arab muted">' + esc(u.kur.NamaArab) + '</div>' : '') + '</td><td>' + esc(u.prodi + ' Smt ' + u.smt) + ' ' + badgeKelas(u.kelas) + '</td><td>' + u.sks + ' SKS (Praktik)</td><td>' + esc(Dom.dosenTeks(u) || '—') + '</td><td><span class="badge info dot">Terjadwal khusus</span></td></tr>').join('') || '<tr><td colspan="5" class="faint">Tidak ada mata kuliah tahfidz.</td></tr>') + '</tbody></table></div></div>' +
@@ -469,6 +493,7 @@ defPage('ujian', {
       '<div class="card card-b"><b>' + ic('book', 'ic-sm') + ' Pola IAT &amp; Hybrid</b><p class="muted" style="margin-top:6px;font-size:13px">Ilmu Al Qur\'an &amp; Tafsir diplot pada waktu yang sama dengan jadwal kuliahnya. Kelas Hybrid mengikuti jadwal Hybrid (Jumat sore & Sabtu).</p></div>' +
       '<div class="card card-b"><b>' + ic('clock', 'ic-sm') + ' Standarisasi Bobot 2 SKS</b><p class="muted" style="margin-top:6px;font-size:13px">Mata kuliah 3–4 SKS yang di jadwal kuliah muncul di 2–3 hari dialokasikan satu slot ujian (2 SKS / 90 menit); kemunculan lain dihilangkan.</p></div></div>';
     if (!this._seret) { this._seret = true; Seret.pasang(this.el, { item: (k) => this.w().map.get(k), bolehJatuh: (it, t) => !t.luar && (um.get(it.uid) || {}).rombel === t.rb, alasanTolak: () => 'Kartu hanya dapat dipindah di baris kelasnya sendiri.', jatuh: (it, t) => this.jatuh(it, t), menu: (it, x, y) => this.menu(it, x, y) }); }
+    GridView.terap(this.el); GridView.pulih(this.el, gul, 'uj|' + s.jenis + '|' + s.pola);
     App.savebar(this);
   },
   jatuh(it, t) {

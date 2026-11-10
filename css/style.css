@@ -618,3 +618,27 @@ details > summary { cursor: pointer; }
 /* ---- v1.2: Penilaian Tahfidz ---- */
 .nt-komp { display: flex; flex-direction: column; gap: 6px; }
 .nt-lbl { font-family: 'Inter', 'Amiri', 'Noto Naskh Arabic', sans-serif; font-size: 15px; }
+/* ---- v1.4: edit MK kurikulum, aturan PDDIKTI, matriks jadwal lebar ---- */
+.kur-edit td { vertical-align: top; }
+.kur-edit .input.sm + .input.sm { margin-top: 4px; }
+.kur-arab { font-family: var(--arab), var(--font); font-size: 15px; }
+.icon-btn.kur-ed { width: 24px; height: 24px; vertical-align: middle; opacity: .55; }
+tr:hover .icon-btn.kur-ed { opacity: 1; }
+.pk-at td { vertical-align: middle; }
+.input.pk-beda { border-color: var(--accent); background: var(--accent-50); font-weight: 700; }
+.page.lebar { max-width: none; }
+.sg.uk-ringkas td.cell { min-width: 86px; width: 86px; height: 64px; }
+.sg.uk-ringkas .sgc { min-height: 56px; padding: 3px 4px 3px 6px; gap: 1px; }
+.sg.uk-ringkas .sgc .mk { font-size: 10.5px; -webkit-line-clamp: 2; }
+.sg.uk-ringkas .sgc .ds { font-size: 9.5px; -webkit-line-clamp: 1; }
+.sg.uk-ringkas .sgc .why { font-size: 9.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sg.uk-ringkas .sg-empty { min-height: 56px; }
+.sg.uk-ringkas .rh { min-width: 130px; max-width: 150px; padding: 6px 8px; }
+.sg.uk-lebar td.cell { min-width: 150px; width: 150px; height: 96px; }
+.sg.uk-lebar .sgc .mk { font-size: 12.5px; }
+.gv-ktl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card.gv-penuh { position: fixed; inset: 8px; z-index: 95; margin: 0 !important; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
+.card.gv-penuh > .sg-wrap { flex: 1 1 auto; max-height: none; min-height: 0; }
+.card.gv-penuh > .tray { max-height: 24vh; overflow: auto; flex: none; }
+body.gv-penuh-on .savebar { z-index: 120; }
+body.gv-penuh-on { overflow: hidden; }

@@ -330,6 +330,8 @@ const App = {
     if (p.init) p.init();
   },
   aksiUmum: {
+    gvUkuran(btn) { GridView.setUkuran(btn.dataset.v); this.render(); },
+    gvPenuh() { GridView._penuh = !GridView._penuh; this.render(); },
     async refresh(btn) {
       const p = this, tabel = (p.refreshTabel || p.deps || []).filter(n => n !== 'Mahasiswa' && n !== 'Aset');
       await denganSibuk(btn, '', async () => {

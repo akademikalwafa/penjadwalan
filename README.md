@@ -3,7 +3,7 @@
 Frontend statis (HTML/CSS/JS murni, tanpa build) untuk aplikasi penjadwalan kuliah & ujian
 **Sekolah Tinggi Ilmu Syariah Al Wafa**. Backend: Google Apps Script (REST API JSON).
 
-- `index.html` — aplikasi (login, 21 menu, pratinjau & cetak A4, tata letak cetak)
+- `index.html` — aplikasi (login, 23 menu, pratinjau & cetak A4, tata letak cetak)
 - `verifikasi.html` — halaman publik pemeriksa keaslian dokumen ber-QR
 - `js/config.js` — **satu-satunya** yang diubah: `GAS_URL` = URL `/exec` Web App
 - `vercel.json` — header keamanan (CSP, HSTS, anti-iframe) & cache untuk Vercel

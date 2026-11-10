@@ -425,14 +425,27 @@ defPage('mahasiswa', {
 /* =====================================================================
    KURIKULUM — 3 langkah (Angkatan → Program Studi → Matriks MK)
    ===================================================================== */
-const SINONIM_KUR = { Prodi: ['prodi', 'program studi', 'kode prodi'], Kelas: ['kelas', 'program', 'program kelas'], Semester: ['semester', 'smt'], KodeMK: ['kode mk', 'kode', 'kode matakuliah', 'kode mata kuliah', 'kodemk'], NamaMK: ['nama mk', 'nama mata kuliah', 'mata kuliah', 'matakuliah', 'nama matakuliah'], NamaArab: ['nama arab', 'arab', 'kitab', 'nama kitab'], SKS: ['sks', 'bobot sks'], Tahfidz: ['tahfidz', 'mk tahfidz'], Angkatan: ['angkatan', 'tahun angkatan', 'tahun masuk'] };
+const SINONIM_KUR = { Prodi: ['prodi', 'program studi', 'kode prodi'], Kelas: ['kelas', 'program', 'program kelas'], Semester: ['semester', 'smt'], KodeMK: ['kode mk', 'kode', 'kode matakuliah', 'kode mata kuliah', 'kodemk'], NamaMK: ['nama mk', 'nama mata kuliah', 'mata kuliah', 'matakuliah', 'nama matakuliah'], NamaArab: ['nama arab', 'arab', 'kitab', 'nama kitab'], SKS: ['sks', 'bobot sks'], Tahfidz: ['tahfidz', 'mk tahfidz'], Angkatan: ['angkatan', 'tahun angkatan', 'tahun masuk'],
+  KodePddikti: ['kode pddikti', 'kode mk pddikti', 'kode feeder'], NamaPddikti: ['nama pddikti', 'nama mk pddikti', 'mata kuliah pddikti', 'nama feeder'], SKSPddikti: ['sks pddikti', 'sks feeder', 'sks laporan'] };
+/** (v1.4) Aturan MK PDDIKTI per prodi · kode MK kurikulum (kode/nama/SKS yang dilaporkan). */
+function aturanPddikti(prodi, kode) { return DB.rows('PddiktiMK').find(a => a.Prodi === prodi && String(a.KodeKur).toUpperCase() === String(kode || '').toUpperCase()) || null; }
 defPage('kurikulum', {
-  deps: ['Kurikulum', 'Realisasi', 'Angkatan', 'Prodi', 'Kelas', 'Mahasiswa'], refreshTabel: ['Kurikulum', 'Realisasi', 'Angkatan'],
-  st: { ang: '', prodi: '', smt: 'semua', status: 'semua', q: '', centang: {}, qProdi: '', tutupInfo: false },
+  deps: ['Kurikulum', 'Realisasi', 'Angkatan', 'Prodi', 'Kelas', 'Mahasiswa', 'PddiktiMK'], refreshTabel: ['Kurikulum', 'Realisasi', 'Angkatan', 'PddiktiMK'],
+  st: { ang: '', prodi: '', smt: 'semua', status: 'semua', q: '', centang: {}, qProdi: '', tutupInfo: false, edit: false, ubahMK: {} },
   onParams(p) { this.st.ang = p[0] || ''; this.st.prodi = p[1] || ''; },
-  isDirty() { return Object.keys(this.st.centang).length > 0; },
-  dirtyInfo() { return { judul: Object.keys(this.st.centang).length + ' perubahan centang belum disimpan', sub: 'Penyimpanan memperbarui daftar Realisasi Kurikulum ' + Dom.perLabel(App.periode.disusun.key) + '.' }; },
-  buang() { this.st.centang = {}; this.render(); },
+  isDirty() { return Object.keys(this.st.centang).length > 0 || Object.keys(this.st.ubahMK).length > 0; },
+  dirtyInfo() {
+    const nC = Object.keys(this.st.centang).length, nU = Object.keys(this.st.ubahMK).length;
+    return { judul: [nU ? nU + ' mata kuliah diubah' : '', nC ? nC + ' perubahan centang' : ''].filter(Boolean).join(' · ') + ' belum disimpan', sub: nU ? 'Saat menyimpan, Anda memilih cakupan penerapan perubahan nama/SKS.' : 'Penyimpanan memperbarui daftar Realisasi Kurikulum ' + Dom.perLabel(App.periode.disusun.key) + '.' };
+  },
+  buang() { this.st.centang = {}; this.st.ubahMK = {}; this.render(); },
+  /** Nilai MK setelah ubahan layar (mode edit). */
+  nilaiMK(k, f) { const u = this.st.ubahMK[k.ID]; return u && f in u ? u[f] : (f === 'Tahfidz' ? (k.Tahfidz === 'YA' ? 'YA' : 'TIDAK') : String(k[f] === undefined ? '' : k[f])); },
+  setMK(k, f, v) {
+    const asli = f === 'Tahfidz' ? (k.Tahfidz === 'YA' ? 'YA' : 'TIDAK') : String(k[f] === undefined ? '' : k[f]), u = Object.assign({}, this.st.ubahMK[k.ID] || {});
+    if (String(v) === asli) delete u[f]; else u[f] = String(v);
+    if (Object.keys(u).length) this.st.ubahMK[k.ID] = u; else delete this.st.ubahMK[k.ID];
+  },
   dipilih(k) { const d = App.periode.disusun.key; return k.ID in this.st.centang ? this.st.centang[k.ID] : (k.Dicentang === 'YA' && (k.DibukaPada === d || k.Permanen === 'YA')); },
   siapArsip(th) {
     const mk = DB.rows('Kurikulum').filter(k => k.Angkatan === th);
@@ -496,7 +509,7 @@ defPage('kurikulum', {
     const s = this.st, th = s.ang, kode = s.prodi, d = App.periode.disusun, smtNow = Dom.semMhs(th, d.key), arsip = Dom.angkatanArsip().has(th);
     const p = DB.get('Prodi', 'Kode', kode) || { Nama: kode }, kelas = Dom.kelasProdi(kode), semua = DB.rows('Kurikulum').filter(k => k.Angkatan === th && k.Prodi === kode);
     const lolos = k => (s.smt === 'semua' || String(k.Semester) === String(s.smt)) && (s.status === 'semua' || (s.status === 'sudah' ? k.Permanen === 'YA' : k.Permanen !== 'YA')) && cocok(k.KodeMK + ' ' + k.NamaMK + ' ' + k.NamaArab, s.q);
-    const nKotor = Object.keys(s.centang).length, totalSks = [...new Map(semua.map(k => [k.KodeMK, +k.SKS || 0])).values()].reduce((a, b) => a + b, 0);
+    const nKotor = Object.keys(s.centang).length + Object.keys(s.ubahMK).length, admin = Sesi.admin(), totalSks = [...new Map(semua.map(k => [k.KodeMK, +k.SKS || 0])).values()].reduce((a, b) => a + b, 0);
     const terpilih = semua.filter(k => this.dipilih(k)), sksPilih = [...new Map(terpilih.map(k => [k.KodeMK, +k.SKS || 0])).values()].reduce((a, b) => a + b, 0);
     const terakhir = semua.reduce((a, k) => (k.DiubahPada > (a.DiubahPada || '') ? k : a), {});
     const status = (k) => {
@@ -510,9 +523,18 @@ defPage('kurikulum', {
       const sks = [...mk.filter(k => this.dipilih(k))].reduce((a, k) => a + (+k.SKS || 0), 0), w = kl.Warna || '#1E3A8A';
       return '<div class="card box-kelas"><div class="bh"><div class="lt" style="background:' + attr(w) + '">' + esc(kl.Kode || kl.Nama[0]) + '</div><div style="flex:1;min-width:0"><div class="row gap-s"><b style="font-size:15.5px">Kelas ' + esc(kl.Nama) + '</b><span class="badge">' + mk.length + ' MK</span><span class="badge ok">' + sks + ' SKS Terpilih</span></div><div class="t-sub">Pola ' + esc(kl.Pola) + (kl.Pola === 'Hybrid' ? ' · Jumat sore & Sabtu' : ' · Senin–Jumat') + '</div></div>' +
         (arsip ? '' : '<button class="link-btn" data-a="semuaBox" data-v="' + attr(kl.Nama) + '">Pilih Semua MK</button>') + '</div>' +
-        '<div class="tbl-wrap" style="max-height:520px"><table class="tbl compact"><thead><tr><th class="num">No</th><th>Smt</th><th>Kode MK</th><th>Nama Mata Kuliah</th><th>SKS</th><th class="center">Pilih</th><th>Status</th></tr></thead><tbody>' +
-        (tampil.map((k, i) => { const perm = k.Permanen === 'YA', on = this.dipilih(k);
-          return '<tr class="' + (k.ID in s.centang ? 'kotor' : '') + '"><td class="num">' + (i + 1) + '</td><td><b>' + esc(k.Semester) + '</b></td><td class="mono">' + esc(k.KodeMK) + '</td><td style="min-width:200px"><b>' + esc(k.NamaMK) + '</b>' + (k.Tahfidz === 'YA' ? ' <span class="badge orange sq">Tahfidz</span>' : '') + (k.NamaArab ? '<div class="arab muted" style="font-size:13px">' + esc(k.NamaArab) + '</div>' : '') + '</td>' +
+        '<div class="tbl-wrap" style="max-height:' + (s.edit ? '70vh' : '520px') + '"><table class="tbl compact' + (s.edit ? ' kur-edit' : '') + '"><thead><tr><th class="num">No</th><th>Smt</th><th>Kode MK</th><th>Nama Mata Kuliah' + (s.edit ? ' / Nama Arab' : '') + '</th><th>SKS</th><th class="center">' + (s.edit ? 'Tahfidz' : 'Pilih') + '</th><th>Status</th></tr></thead><tbody>' +
+        (tampil.map((k, i) => { const perm = k.Permanen === 'YA', on = this.dipilih(k), at = aturanPddikti(k.Prodi, k.KodeMK);
+          if (s.edit && !arsip) {
+            const kunciStr = perm && !admin, v = (f) => attr(this.nilaiMK(k, f)), t = kunciStr ? ' disabled title="MK permanen (sudah terjadwal) — SKS/semester hanya dapat diubah Admin Utama"' : '';
+            return '<tr class="' + (s.ubahMK[k.ID] ? 'kotor' : '') + '" data-row="' + attr(k.ID) + '"><td class="num">' + (i + 1) + '</td><td><input class="input sm" type="number" min="1" max="14" style="width:60px" data-in="mk" data-f="Semester" data-id="' + attr(k.ID) + '" value="' + v('Semester') + '"' + t + '></td><td class="mono">' + esc(k.KodeMK) + '</td>' +
+              '<td style="min-width:260px"><input class="input sm" maxlength="160" data-in="mk" data-f="NamaMK" data-id="' + attr(k.ID) + '" value="' + v('NamaMK') + '"><input class="input sm kur-arab" dir="rtl" maxlength="200" placeholder="Nama Arab (opsional)" data-in="mk" data-f="NamaArab" data-id="' + attr(k.ID) + '" value="' + v('NamaArab') + '"></td>' +
+              '<td><input class="input sm" type="number" min="1" max="8" style="width:60px" data-in="mk" data-f="SKS" data-id="' + attr(k.ID) + '" value="' + v('SKS') + '"' + t + '></td>' +
+              '<td class="center"><input type="checkbox" style="width:18px;height:18px;accent-color:var(--accent)" data-ch="mkTh" data-id="' + attr(k.ID) + '" ' + (this.nilaiMK(k, 'Tahfidz') === 'YA' ? 'checked' : '') + (kunciStr ? ' disabled' : '') + '></td><td class="nowrap">' + status(k) + (perm && admin ? '<div class="t-sub" style="color:var(--warn)">' + ic('alert', 'ic-sm') + ' ubah SKS → atur ulang jadwal</div>' : '') + '</td></tr>';
+          }
+          return '<tr class="' + (k.ID in s.centang ? 'kotor' : '') + '"><td class="num">' + (i + 1) + '</td><td><b>' + esc(k.Semester) + '</b></td><td class="mono">' + esc(k.KodeMK) + '</td><td style="min-width:200px"><b>' + esc(k.NamaMK) + '</b>' + (k.Tahfidz === 'YA' ? ' <span class="badge orange sq">Tahfidz</span>' : '') +
+            (at && (at.SKS !== '' || at.NamaMK || at.KodePddikti) ? ' <span class="badge info sq" title="Aturan PDDIKTI: ' + attr([at.KodePddikti, at.NamaMK, at.SKS !== '' ? at.SKS + ' SKS' : ''].filter(Boolean).join(' · ')) + '">PDDIKTI' + (at.SKS !== '' ? ' ' + esc(at.SKS) + ' SKS' : '') + '</span>' : '') +
+            (arsip ? '' : ' <button class="icon-btn kur-ed" data-a="ubahMK" data-id="' + attr(k.ID) + '" title="Ubah nama / SKS / aturan PDDIKTI">' + ic('edit', 'ic-sm') + '</button>') + (k.NamaArab ? '<div class="arab muted" style="font-size:13px">' + esc(k.NamaArab) + '</div>' : '') + '</td>' +
             '<td class="center"><b>' + esc(k.SKS) + '</b></td><td class="center"><input type="checkbox" class="chk-in" style="width:18px;height:18px;accent-color:var(--primary)" data-ch="cek" data-id="' + attr(k.ID) + '" ' + (on ? 'checked' : '') + ' ' + (perm || arsip ? 'disabled' : '') + ' title="' + (perm ? 'Sudah permanen — tidak dapat dibatalkan' : '') + '"></td><td class="nowrap">' + status(k) + '</td></tr>'; }).join('') ||
           '<tr><td colspan="7">' + kosong(mk.length ? 'Tidak ada MK pada filter ini.' : 'Belum ada mata kuliah. Gunakan Impor Kurikulum Prodi.', 'book') + '</td></tr>') + '</tbody></table></div>' +
         '<div class="bf"><span>Menampilkan ' + tampil.length + ' dari ' + mk.length + ' mata kuliah</span>' + (arsip ? '' : '<button class="link-btn" data-a="resetBox" data-v="' + attr(kl.Nama) + '">Reset pilihan</button>') + '</div></div>';
@@ -522,13 +544,14 @@ defPage('kurikulum', {
     this.el.innerHTML = '<div class="card card-b" style="margin-bottom:14px"><div class="row"><div style="flex:1;min-width:260px"><div class="crumb">Data ' + ic('right') + ' <a href="#/kurikulum">Kurikulum</a> ' + ic('right') + ' <a href="#/kurikulum/' + th + '">Angkatan ' + th + '</a> ' + ic('right') + ' ' + esc(p.Nama) + ' ' + ic('right') + ' <b>Matriks Mata Kuliah</b></div>' +
       '<h1 style="font-size:24px;font-weight:800">Matriks Mata Kuliah <span class="muted" style="font-weight:600">— Angkatan ' + th + ' (Semester ' + smtNow + ')</span></h1><div class="row gap-s" style="margin-top:6px"><span class="badge sq" style="background:color-mix(in srgb,' + p.Warna + ' 14%,transparent);color:' + p.Warna + '">' + esc(p.Nama) + '</span><span class="badge ok">' + ic('okc', 'ic-sm') + (arsip ? 'Angkatan diarsipkan — hanya lihat' : 'Kurikulum Aktif') + '</span><span class="badge info">' + esc(Dom.perLabel(d.key)) + '</span></div></div>' + this.stepper(3) + '</div></div>' +
       '<div class="card card-b" style="margin-bottom:14px"><div class="row">' + (nKotor ? '<span class="badge orange">' + ic('alert', 'ic-sm') + nKotor + ' perubahan belum disimpan</span>' : '<span class="badge ok">' + ic('okc', 'ic-sm') + 'Semua tersimpan</span>') + '<span class="muted" style="font-size:12.5px">Terakhir diperbarui: ' + esc(terakhir.DiubahPada ? fmtWaktu(terakhir.DiubahPada) + ' · ' + (terakhir.DiubahOleh || '') : '—') + '</span><span class="sp"></span>' +
-      (arsip ? '' : '<button class="btn" data-a="import">' + ic('upload') + 'Impor Kurikulum Prodi</button>') + '<button class="btn" data-a="export">' + ic('download') + 'Export ke Excel</button>' + btnRefresh(false) + (arsip ? '' : '<button class="btn btn-primary" data-a="simpan" ' + (nKotor ? '' : 'disabled') + '>' + ic('save') + 'Simpan Perubahan</button>') + '</div></div>' +
-      (s.tutupInfo ? '' : '<div class="alert info">' + ic('info') + '<div style="flex:1"><b>Petunjuk Penyusunan Matriks:</b> Centang mata kuliah yang dibuka untuk semester yang sedang disusun, lalu klik <b>Simpan Perubahan</b> agar muncul di Realisasi Kurikulum. Klik ganda nomor semester untuk mencentang sekaligus semua mata kuliah semester itu. Mata kuliah yang telah berstatus <span class="badge navy">' + ic('lock', 'ic-sm') + 'permanen</span> terkunci otomatis.</div><button class="icon-btn" data-a="tutupInfo">' + ic('x') + '</button></div>') +
+      (arsip ? '' : '<button class="btn' + (s.edit ? ' btn-accent' : '') + '" data-a="modeEdit">' + ic('edit') + (s.edit ? 'Selesai Edit' : 'Edit Nama & SKS') + '</button><button class="btn" data-a="import">' + ic('upload') + 'Impor Kurikulum Prodi</button>') + '<button class="btn" data-a="export">' + ic('download') + 'Export ke Excel</button>' + btnRefresh(false) + (arsip ? '' : '<button class="btn btn-primary" data-a="simpan" ' + (nKotor ? '' : 'disabled') + '>' + ic('save') + 'Simpan Perubahan</button>') + '</div></div>' +
+      (s.edit ? '<div class="alert warn">' + ic('edit') + '<div style="flex:1"><b>Mode edit mata kuliah:</b> ubah nama, nama Arab, SKS, semester, atau tanda tahfidz langsung di tabel (baris berubah ditandai oranye). Tekan <b>Simpan Perubahan</b>, lalu pilih cakupan: baris ini saja, semua angkatan aktif (kelas sama), atau semua kelas &amp; angkatan aktif prodi ini.' + (admin ? '' : ' SKS/semester MK permanen hanya dapat diubah Admin Utama.') + '</div></div>' : '') +
+      (s.tutupInfo || s.edit ? '' : '<div class="alert info">' + ic('info') + '<div style="flex:1"><b>Petunjuk Penyusunan Matriks:</b> Centang mata kuliah yang dibuka untuk semester yang sedang disusun, lalu klik <b>Simpan Perubahan</b> agar muncul di Realisasi Kurikulum. Klik ganda nomor semester untuk mencentang sekaligus semua mata kuliah semester itu. Mata kuliah yang telah berstatus <span class="badge navy">' + ic('lock', 'ic-sm') + 'permanen</span> terkunci otomatis.</div><button class="icon-btn" data-a="tutupInfo">' + ic('x') + '</button></div>') +
       '<div class="card card-b" style="margin-bottom:14px"><div class="row"><span class="lbl">SEMESTER:</span><div class="semchips"><button data-a="smt" data-v="semua" class="' + (s.smt === 'semua' ? 'on' : '') + '">Semua</button>' + smtChips.map(x => '<button data-a="smt" data-dbl="smtAll" data-v="' + x + '" class="' + (String(s.smt) === String(x) ? 'on' : '') + (x === smtNow ? ' cur' : '') + '" title="Klik ganda: centang semua MK semester ' + x + '">' + x + '</button>').join('') + '</div><span class="sp"></span>' +
       '<div class="seg">' + [['semua', 'Semua', semua.length], ['belum', 'Belum Terjadwal', semua.filter(k => k.Permanen !== 'YA').length], ['sudah', 'Sudah Terjadwal', semua.filter(k => k.Permanen === 'YA').length]].map(x => '<button data-a="status" data-v="' + x[0] + '" class="' + (s.status === x[0] ? 'on' : '') + '">' + x[1] + ' <small>(' + x[2] + ')</small></button>').join('') + '</div>' +
       '<div class="input-ic" style="width:min(260px,100%)">' + ic('search') + '<input class="input" data-in="q" placeholder="Cari mata kuliah atau kode…" value="' + attr(s.q) + '"></div></div></div>' +
       '<div class="row" style="margin:0 2px 12px"><b style="color:var(--primary)">' + ic('chart', 'ic-sm') + ' ' + sksPilih + ' / ' + totalSks + ' SKS Terpilih</b><span class="muted">· ' + kelas.length + ' Kelas Aktif (' + esc(kelas.map(k => k.Nama).join(', ')) + ')</span><span class="sp"></span><div class="legend"><span><i style="background:var(--primary);border-radius:50%"></i>Terkunci</span><span><i style="background:#16A34A;border-radius:50%"></i>Dipilih</span><span><i style="background:var(--border-2);border-radius:50%"></i>Tidak dibuka</span></div></div>' +
-      '<div class="grid2">' + kelas.map(box).join('') + '</div>';
+      '<div class="grid2"' + (s.edit ? ' style="grid-template-columns:minmax(0,1fr)"' : '') + '>' + kelas.map(box).join('') + '</div>';
   },
   acts: {
     ke1() { App.nav('kurikulum'); }, ke2(b) { App.nav('kurikulum/' + b.dataset.v); }, ke3(b) { App.nav('kurikulum/' + this.st.ang + '/' + b.dataset.v); },
@@ -536,6 +559,8 @@ defPage('kurikulum', {
     semuaBox(b) { const d = App.periode.disusun.key; DB.rows('Kurikulum').filter(k => k.Angkatan === this.st.ang && k.Prodi === this.st.prodi && k.Kelas === b.dataset.v && k.Permanen !== 'YA').forEach(k => this.setCek(k, true)); this.render(); },
     resetBox(b) { DB.rows('Kurikulum').filter(k => k.Angkatan === this.st.ang && k.Prodi === this.st.prodi && k.Kelas === b.dataset.v).forEach(k => delete this.st.centang[k.ID]); this.render(); },
     simpan(b) { this.simpan(b); },
+    modeEdit() { this.st.edit = !this.st.edit; this.render(); },
+    ubahMK(b) { const k = DB.get('Kurikulum', 'ID', b.dataset.id); if (k) this.formUbahMK(k); },
     async export() {
       const th = this.st.ang, kode = this.st.prodi, rows = [['Prodi', 'Kelas', 'Semester', 'Kode MK', 'Nama MK', 'Nama Arab', 'SKS', 'Tahfidz', 'Dipilih', 'Status']];
       DB.rows('Kurikulum').filter(k => k.Angkatan === th && k.Prodi === kode).sort((a, b) => String(a.Kelas).localeCompare(b.Kelas) || num(a.Semester) - num(b.Semester)).forEach(k => rows.push([Dom.prodiNama(k.Prodi), k.Kelas, +k.Semester, k.KodeMK, k.NamaMK, k.NamaArab, +k.SKS, k.Tahfidz, this.dipilih(k) ? 'YA' : 'TIDAK', k.Permanen === 'YA' ? 'Permanen' : '']));
@@ -554,8 +579,10 @@ defPage('kurikulum', {
     }
   },
   dbl: { smtAll(b) { const v = b.dataset.v; DB.rows('Kurikulum').filter(k => k.Angkatan === this.st.ang && k.Prodi === this.st.prodi && String(k.Semester) === v && k.Permanen !== 'YA').forEach(k => this.setCek(k, true)); this.st.smt = v; this.render(); toast('Semua mata kuliah semester ' + v + ' dicentang. Tekan Simpan Perubahan.', 'info'); } },
-  ch: { cek(t) { const k = DB.get('Kurikulum', 'ID', t.dataset.id); if (k) { this.setCek(k, t.checked); this.render(); } } },
+  ch: { cek(t) { const k = DB.get('Kurikulum', 'ID', t.dataset.id); if (k) { this.setCek(k, t.checked); this.render(); } },
+    mkTh(t) { const k = DB.get('Kurikulum', 'ID', t.dataset.id); if (!k) return; this.setMK(k, 'Tahfidz', t.checked ? 'YA' : 'TIDAK'); this.tandaiBaris(k.ID); } },
   inp: {
+    mk(t) { const k = DB.get('Kurikulum', 'ID', t.dataset.id); if (!k) return; this.setMK(k, t.dataset.f, t.value.trim()); this.tandaiBaris(k.ID); },
     q: debounce(function (t) { this.st.q = t.value; this.render(); const i = $('[data-in="q"]', this.el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250),
     qprodi: debounce(function (t) { this.st.qProdi = t.value; this.render(); const i = $('[data-in="qprodi"]', this.el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250)
   },
@@ -564,7 +591,70 @@ defPage('kurikulum', {
     const asli = k.Dicentang === 'YA' && k.DibukaPada === App.periode.disusun.key;
     if (on === asli) delete this.st.centang[k.ID]; else this.st.centang[k.ID] = on;
   },
+  tandaiBaris(id) { const tr = $('tr[data-row="' + CSS.escape(id) + '"]', this.el); if (tr) tr.classList.toggle('kotor', !!this.st.ubahMK[id]); App.savebar(this); const b = $('[data-a="simpan"]', this.el); if (b) b.disabled = !this.isDirty(); },
+  /** Hitung baris yang ikut berubah per cakupan (untuk dialog). */
+  cakupanHitung(ids) {
+    const kur = DB.rows('Kurikulum'), aktif = new Set(Dom.angkatanAktif()), set = { baris: new Set(), angkatan: new Set(), semua: new Set() };
+    ids.forEach(id => { const o = DB.get('Kurikulum', 'ID', id); if (!o) return; set.baris.add(id); set.angkatan.add(id); set.semua.add(id);
+      kur.forEach(x => { if (x.ID === id || x.Prodi !== o.Prodi || String(x.KodeMK).toUpperCase() !== String(o.KodeMK).toUpperCase() || !aktif.has(x.Angkatan)) return; set.semua.add(x.ID); if (x.Kelas === o.Kelas) set.angkatan.add(x.ID); }); });
+    return { baris: set.baris.size, angkatan: set.angkatan.size, semua: set.semua.size };
+  },
+  /** Dialog cakupan + konfirmasi MK permanen. Hasil: {cakupan, paksa} atau null. */
+  tanyaCakupan(ubah) {
+    const n = this.cakupanHitung(ubah.map(u => u.id)), admin = Sesi.admin();
+    const permStr = ubah.filter(u => { const k = DB.get('Kurikulum', 'ID', u.id); return k && k.Permanen === 'YA' && ('SKS' in u || 'Semester' in u || 'Tahfidz' in u); }).length;
+    const opsiC = [['baris', 'Hanya baris yang diubah', n.baris + ' baris'], ['angkatan', 'Juga angkatan aktif lain — kelas yang sama', n.angkatan + ' baris (kode MK sama)'], ['semua', 'Juga semua kelas & angkatan aktif prodi ini', n.semua + ' baris (kode MK sama)']];
+    return new Promise(res => { let hasil = null; Modal.buka({ title: 'Terapkan perubahan mata kuliah', sub: ubah.length + ' mata kuliah diubah', icon: 'edit',
+      body: '<div class="stack">' + opsiC.map((c, i) => '<label class="radio-card"><input type="radio" name="kc" value="' + c[0] + '" ' + (i === 0 ? 'checked' : '') + '> <span><b>' + c[1] + '</b><small class="faint" style="display:block">' + c[2] + '</small></span></label>').join('') +
+        (permStr ? (admin ? '<label class="chk" style="margin-top:4px"><input type="checkbox" id="kc-paksa"> Ubah juga SKS/semester/tahfidz pada ' + permStr + ' MK permanen <span class="faint">(jadwal tersimpan perlu diatur ulang di Generate Jadwal lalu disimpan)</span></label>' : '<div class="alert warn" style="margin:0">' + ic('lock') + '<div>' + permStr + ' MK sudah permanen: namanya diperbarui, tetapi SKS/semester/tahfidz hanya dapat diubah Admin Utama.</div></div>') : '') +
+        '<div class="help">MK berkode sama di angkatan yang diarsipkan tidak ikut berubah.</div></div>',
+      foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-a="ok">' + ic('save') + 'Simpan</button>', onClose: () => res(hasil),
+      acts: { ok: (b, e, m) => { hasil = { cakupan: ($('input[name="kc"]:checked', m.el) || {}).value || 'baris', paksa: !!($('#kc-paksa', m.el) || {}).checked }; m.close(); } } }); });
+  },
+  async simpanMK(btn, ubah) {
+    const pilih = await this.tanyaCakupan(ubah); if (!pilih) return false;
+    const kirim = (pk) => api('kurikulum.ubahMK', { ubah, cakupan: pilih.cakupan, paksa: pilih.paksa, base: pk ? undefined : { Kurikulum: DB.ver.Kurikulum } }, { silent: true });
+    let r = await denganSibuk(btn, 'Menyimpan…', () => kirim(false));
+    if (r.code === 'CONFLICT') r = await tanganiKonflik(r, () => kirim(true));
+    if (!r.success) { if (r.code !== 'CONFLICT') toast(r.message, 'err'); return false; }
+    toast(r.message, r.data && r.data.terkunci ? 'warn' : 'ok'); return true;
+  },
+  /** Ubah satu MK lewat dialog (nama, SKS, semester, tahfidz + aturan PDDIKTI prodi). */
+  formUbahMK(k) {
+    const at = aturanPddikti(k.Prodi, k.KodeMK) || {}, perm = k.Permanen === 'YA', admin = Sesi.admin(), kunci = perm && !admin;
+    Modal.buka({ title: 'Ubah Mata Kuliah', sub: esc(k.KodeMK) + ' · ' + esc(Dom.prodiNama(k.Prodi)) + ' · Kelas ' + esc(k.Kelas) + ' · Angkatan ' + esc(k.Angkatan), icon: 'edit', size: 'lg',
+      body: '<div class="stack"><div class="fgrid c2"><div class="field" style="grid-column:1/-1"><label>Nama mata kuliah *</label><input class="input" id="um-n" maxlength="160" value="' + attr(k.NamaMK) + '"></div>' +
+        '<div class="field" style="grid-column:1/-1"><label>Nama Arab (opsional)</label><input class="input kur-arab" dir="rtl" id="um-a" maxlength="200" value="' + attr(k.NamaArab || '') + '"></div>' +
+        '<div class="field"><label>SKS jadwal kuliah</label><input class="input" type="number" min="1" max="8" id="um-s" value="' + attr(k.SKS) + '"' + (kunci ? ' disabled' : '') + '></div><div class="field"><label>Semester</label><input class="input" type="number" min="1" max="14" id="um-m" value="' + attr(k.Semester) + '"' + (kunci ? ' disabled' : '') + '></div>' +
+        '<label class="chk" style="grid-column:1/-1"><input type="checkbox" id="um-t" ' + (k.Tahfidz === 'YA' ? 'checked' : '') + (kunci ? ' disabled' : '') + '> Mata kuliah tahfidz (2 dosen)</label></div>' +
+        (perm ? '<div class="alert ' + (admin ? 'warn' : 'info') + '" style="margin:0">' + ic('lock') + '<div>MK ini sudah permanen (terjadwal). ' + (admin ? 'Mengubah SKS/semester memerlukan pengaturan ulang di Generate Jadwal lalu Simpan.' : 'SKS/semester/tahfidz hanya dapat diubah Admin Utama; nama tetap bisa diubah.') + '</div></div>' : '') +
+        '<div class="lbl" style="margin-top:4px">Terapkan ke</div>' + [['baris', 'Baris ini saja'], ['angkatan', 'Semua angkatan aktif · kelas ' + k.Kelas], ['semua', 'Semua kelas & angkatan aktif prodi ini']].map((c, i) => '<label class="radio-card" style="padding:9px 12px"><input type="radio" name="um-c" value="' + c[0] + '" ' + (i === 0 ? 'checked' : '') + '> <span><b>' + esc(c[1]) + '</b></span></label>').join('') +
+        '<div class="card card-b" style="background:var(--surface-2);margin-top:4px"><div class="row gap-s" style="margin-bottom:8px">' + ic('report') + '<b>Pelaporan PDDIKTI</b><span class="faint" style="font-size:12px">berlaku untuk semua kelas &amp; angkatan ' + esc(k.Prodi) + ' berkode ' + esc(k.KodeMK) + ' — kosongkan agar mengikuti kurikulum</span></div>' +
+        '<div class="fgrid" style="grid-template-columns:1fr 2fr 1fr"><div class="field"><label>Kode PDDIKTI</label><input class="input mono" id="um-pk" maxlength="30" placeholder="' + attr(k.KodeMK) + '" value="' + attr(at.KodePddikti || '') + '"></div><div class="field"><label>Nama MK PDDIKTI</label><input class="input" id="um-pn" maxlength="160" placeholder="' + attr(k.NamaMK) + '" value="' + attr(at.NamaMK || '') + '"></div><div class="field"><label>SKS PDDIKTI</label><input class="input" type="number" min="0" max="12" id="um-ps" placeholder="' + attr(k.SKS) + '" value="' + attr(at.SKS === undefined ? '' : at.SKS) + '"></div></div></div></div>',
+      foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-a="ok">' + ic('save') + 'Simpan</button>',
+      acts: { ok: async (b, e, m) => {
+        const v = (id) => $('#' + id, m.el).value.trim(), u = { id: k.ID };
+        if (!v('um-n')) return toast('Nama mata kuliah wajib diisi.', 'err');
+        if (v('um-n') !== k.NamaMK) u.NamaMK = v('um-n'); if (v('um-a') !== (k.NamaArab || '')) u.NamaArab = v('um-a');
+        if (!kunci) { if (v('um-s') !== String(k.SKS)) u.SKS = v('um-s'); if (v('um-m') !== String(k.Semester)) u.Semester = v('um-m'); const th = $('#um-t', m.el).checked ? 'YA' : 'TIDAK'; if (th !== (k.Tahfidz === 'YA' ? 'YA' : 'TIDAK')) u.Tahfidz = th; }
+        const cak = ($('input[name="um-c"]:checked', m.el) || {}).value || 'baris';
+        const atBaru = { Prodi: k.Prodi, KodeKur: k.KodeMK, KodePddikti: v('um-pk'), NamaMK: v('um-pn'), SKS: v('um-ps') }, atUbah = atBaru.KodePddikti !== (at.KodePddikti || '') || atBaru.NamaMK !== (at.NamaMK || '') || String(atBaru.SKS) !== String(at.SKS === undefined ? '' : at.SKS);
+        if (Object.keys(u).length === 1 && cak === 'baris' && !atUbah) { m.close(); return; }
+        const paksa = perm && admin && ('SKS' in u || 'Semester' in u || 'Tahfidz' in u);
+        if (paksa && !(await konfirmasi('MK ini sudah permanen di jadwal. Ubah SKS/semester/tahfidz? Jadwal tersimpan perlu diatur ulang di Generate Jadwal lalu disimpan.', { ok: 'Ubah', danger: true }))) return;
+        await denganSibuk(b, 'Menyimpan…', async () => {
+          if (Object.keys(u).length > 1 || cak !== 'baris') {
+            if (Object.keys(u).length === 1) { u.NamaMK = v('um-n'); }
+            const r = await api('kurikulum.ubahMK', { ubah: [u], cakupan: cak, paksa }); if (!r.success) return; toast(r.message, r.data && r.data.terkunci ? 'warn' : 'ok');
+          }
+          if (atUbah) { const r2 = await api('pddiktiMK.simpan', { aturan: [atBaru] }); if (!r2.success) return; toast(r2.message); }
+          m.close();
+        });
+      } } });
+  },
   async simpan(btn, paksa) {
+    const ubahMK = Object.keys(this.st.ubahMK).map(id => Object.assign({ id }, this.st.ubahMK[id]));
+    if (ubahMK.length) { if (!(await this.simpanMK(btn, ubahMK))) return false; this.st.ubahMK = {}; if (!Object.keys(this.st.centang).length) { this.render(); return true; } }
     const perubahan = Object.keys(this.st.centang).map(id => ({ id, centang: this.st.centang[id] }));
     if (!perubahan.length) return true;
     const kirim = (pk) => api('kurikulum.simpan', { perubahan, base: { Kurikulum: DB.ver.Kurikulum }, paksa: !!pk }, { silent: true });
@@ -591,8 +681,11 @@ defPage('kurikulum', {
       } });
   },
   unduhTemplate() {
-    Excel.tulis('Template Kurikulum — PENJADWALAN AL WAFA', [{ nama: 'Kurikulum', rows: [['Prodi', 'Kelas', 'Semester', 'Kode MK', 'Nama MK', 'Nama Arab', 'SKS', 'Tahfidz'],
-      ['Hukum Ekonomi Syariah', '', 1, 'HES101', 'Ushul Fiqih I', 'أصول الفقه', 2, ''], ['Hukum Ekonomi Syariah', "Ma'had Aly Ikhwan", 1, 'MAL101', 'Fiqih Muamalah (Bidayatul Mujtahid)', 'بداية المجتهد', 3, ''], ['Hukum Ekonomi Syariah', '', 1, 'WAF101', 'Tahfidz & Tahsin Al-Qur\'an Juz 1', '', 2, 'YA']], lebar: [26, 20, 9, 11, 40, 30, 6, 8] }]);
+    Excel.tulis('Template Kurikulum — PENJADWALAN AL WAFA', [{ nama: 'Kurikulum', rows: [['Prodi', 'Kelas', 'Semester', 'Kode MK', 'Nama MK', 'Nama Arab', 'SKS', 'Tahfidz', 'Kode PDDIKTI', 'Nama MK PDDIKTI', 'SKS PDDIKTI'],
+      ['Hukum Ekonomi Syariah', '', 1, 'HES101', 'Ushul Fiqih I', 'أصول الفقه', 2, '', '', '', ''], ['Hukum Ekonomi Syariah', "Ma'had Aly Ikhwan", 1, 'MAL101', 'Fiqih Muamalah (Bidayatul Mujtahid)', 'بداية المجتهد', 3, '', '', '', ''], ['Hukum Ekonomi Syariah', '', 1, 'WAF101', 'Tahfidz & Tahsin Al-Qur\'an Juz 1', '', 2, 'YA', '', '', ''],
+      ['Ekonomi Syariah', 'Reguler', 1, 'ES105', 'Bahasa Inggris I', '', 2, '', 'ESY1105', 'Bahasa Inggris I', 4], ['Ekonomi Syariah', 'Hybrid', 1, 'ES105', 'Bahasa Inggris I', '', 2, '', '', '', ''],
+    ], lebar: [26, 20, 9, 11, 40, 30, 6, 8, 14, 30, 12] }, { nama: 'Petunjuk', rows: [['Petunjuk pengisian'], ['• Kelas kosong = mata kuliah dibuat untuk semua kelas prodi. Isi Kelas bila nama/SKS berbeda antara Reguler, Hybrid, Ma\'had Aly.'],
+      ['• Kode PDDIKTI, Nama MK PDDIKTI, SKS PDDIKTI opsional — isi bila yang dilaporkan ke PDDIKTI berbeda dari jadwal kuliah (berlaku per prodi · kode MK, semua kelas & angkatan).'], ['• Kolom Angkatan (opsional) membatasi baris ke angkatan tertentu.']], lebar: [120] }]);
   },
   importExcel(th, kode) {
     pilihBerkas('.xlsx,.xls,.csv').then(async f => {
@@ -645,11 +738,20 @@ defPage('kurikulum', {
             const kirim = { prodi: st.prodi || undefined, rows: rows.map(x => Object.assign({}, x)), mode };
             if (semua) kirim.angkatan = '*'; else kirim.angkatanList = target;
             const r = await denganSibuk(b, 'Mengimpor…', () => api('kurikulum.import', kirim));
-            if (r.success) { mm.close(); toast(r.message); this.hasilImport(r.data); }
+            if (r.success) { mm.close(); toast(r.message); await this.aturanDariImpor(rows, st.prodi, kodeP); this.hasilImport(r.data); }
           }
         } });
       m.el.addEventListener('change', (e) => { if (e.target.id === 'ig-p') { st.prodi = e.target.value; const mode = $('#ig-m', m.el).value; $('#ig-isi', m.el).innerHTML = isi(); $('#ig-m', m.el).value = mode; } });
     });
+  },
+  /** Kolom opsional Kode/Nama/SKS PDDIKTI pada berkas impor → aturan MK PDDIKTI (per prodi · kode MK). */
+  async aturanDariImpor(rows, prodiPilih, kodeP) {
+    const aturan = new Map();
+    rows.forEach(r => { if (!r.KodePddikti && !r.NamaPddikti && !r.SKSPddikti) return; const p = r.Prodi ? kodeP(r.Prodi) : prodiPilih, kode = String(r.KodeMK || '').toUpperCase().replace(/\s+/g, ''); if (!p || !kode) return;
+      aturan.set(p + '|' + kode, { Prodi: p, KodeKur: kode, KodePddikti: r.KodePddikti || '', NamaMK: r.NamaPddikti || '', SKS: r.SKSPddikti || '' }); });
+    if (!aturan.size) return;
+    const r = await api('pddiktiMK.simpan', { aturan: [...aturan.values()] }, { silent: true });
+    if (r.success) toast(r.message); else toast('Kolom PDDIKTI pada berkas tidak tersimpan: ' + r.message, 'warn');
   },
   async eksporGlobal(btn) {
     const aktif = new Set(Dom.angkatanAktif()), kur = DB.rows('Kurikulum').filter(k => aktif.has(k.Angkatan)), d = App.periode.disusun.key;
