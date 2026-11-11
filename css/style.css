@@ -642,3 +642,29 @@ tr:hover .icon-btn.kur-ed { opacity: 1; }
 .card.gv-penuh > .tray { max-height: 24vh; overflow: auto; flex: none; }
 body.gv-penuh-on .savebar { z-index: 120; }
 body.gv-penuh-on { overflow: hidden; }
+
+/* ===== v1.5 ===== */
+/* Matriks jadwal: kolom KELAS/ROMBEL tetap ramping; sisa lebar dibagi rata ke kolom sesi (pola dengan sedikit sesi, mis. Hybrid) */
+table.sg.sg-fix { --rhw: 184px; --cw: 112px; --cwmax: 280px; table-layout: fixed; min-width: 0; width: max(calc(var(--rhw) + var(--n, 1) * var(--cw)), min(100%, calc(var(--rhw) + var(--n, 1) * var(--cwmax)))); }
+table.sg.sg-fix .rh { width: var(--rhw); min-width: 0; max-width: none; overflow-wrap: anywhere; }
+table.sg.sg-fix td.cell { width: auto; min-width: 0; }
+table.sg.sg-fix.uk-ringkas { --rhw: 146px; --cw: 86px; --cwmax: 220px; }
+table.sg.sg-fix.uk-lebar { --cw: 150px; --cwmax: 340px; }
+@media (max-width: 640px) { table.sg.sg-fix { --rhw: 136px; } table.sg.sg-fix.uk-ringkas { --rhw: 118px; } }
+/* Dua kartu (gabung MK) dalam satu sel */
+.sg td.cell .sgc + .sgc { margin-top: 2px; }
+.sg td.cell .sgc.gab + .sgc.gab { border-top-style: dashed; }
+/* Kurikulum: hapus MK */
+.tbl tr.kur-del td { background: var(--err-bg) !important; }
+.tbl tr.kur-del td .input, .tbl tr.kur-del td.mono { text-decoration: line-through; color: var(--err); }
+.kur-delc { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--err); }
+.kur-delc input { width: 17px; height: 17px; accent-color: var(--err); }
+.kur-delc:has(input:disabled) { color: var(--text-3); cursor: not-allowed; }
+.icon-btn.kur-hp:hover { color: var(--err); background: var(--err-bg); }
+.kur-dlist { margin: 0 0 4px; padding-left: 18px; font-size: 13px; line-height: 1.6; max-height: 160px; overflow: auto; }
+/* Gabung MK */
+.link-btn.gmk-btn { font-size: 12.5px; display: inline-flex; align-items: center; gap: 4px; }
+.link-btn.gmk-btn:disabled { opacity: .45; cursor: not-allowed; }
+.gmk-c { align-items: flex-start; }
+.kur-aksi { display: inline-flex; gap: 2px; white-space: nowrap; vertical-align: middle; }
+.sg.hl-gb .sgc.gab .why { color: #FECACA; }

@@ -5,6 +5,48 @@
    ===================================================================== */
 'use strict';
 /* =====================================================================
+   (v1.5) GABUNG MK — beberapa MK (boleh beda nama) yang diampu dosen sama
+   diajar dalam satu waktu. Memakai kolom Gabung yang sama dengan gabung kelas.
+   ===================================================================== */
+const GabungMK = {
+  /** Apakah grup berisi MK berbeda (bukan sekadar gabung kelas MK yang sama). */
+  campur(anggota) { return new Set(anggota.map(x => String(x.kur.KodeMK).toUpperCase())).size > 1; },
+  /** Label anggota grup untuk teks kecil. */
+  label(x, u) { return x.prodi + '-' + x.smt + ' ' + x.kelas + (String(x.kur.KodeMK).toUpperCase() !== String(u.kur.KodeMK).toUpperCase() ? ' · ' + x.kur.NamaMK : ''); },
+  /** Dialog pilih MK. kand: unit kandidat; gab(x): kunci grup x saat ini; g0: grup u. Hasil: [id] (kosong = lepas semua) atau null (batal). */
+  dialog(u, kand, gab, g0) {
+    const per = App.periode.disusun.key, sama = kand.filter(x => x.rombel === u.rombel), lain = kand.filter(x => x.rombel !== u.rombel);
+    const kartu = (x) => { const gx = gab(x), ikut = gx && gx !== g0 ? Dom.units(per).filter(y => gab(y) === gx && y.id !== x.id && y.id !== u.id) : [];
+      return '<label class="chk card card-b gmk-c" style="padding:10px 12px"><input type="checkbox" value="' + attr(x.id) + '" ' + (g0 && gx === g0 ? 'checked' : '') + '><div style="flex:1;min-width:0"><b>' + esc(x.kur.NamaMK) + '</b> <span class="badge sq mono">' + esc(x.kur.KodeMK) + '</span> <span class="badge sq">' + x.sks + ' SKS</span>' +
+        '<div class="t-sub">' + esc(Dom.rombelLabel(x.prodi, x.angkatan, x.kelas, per, true)) + (ikut.length ? ' · <span style="color:var(--accent-h)">ikut grupnya: ' + esc(ikut.map(y => GabungMK.label(y, x)).join(', ')) + '</span>' : '') + '</div></div></label>'; };
+    const sksBeda = kand.some(x => x.sks !== u.sks);
+    return new Promise(res => { let hasil = null;
+      Modal.buka({ title: 'Gabung MK dalam satu waktu', sub: esc(u.kur.NamaMK) + ' · ' + esc(Dom.rombelLabel(u.prodi, u.angkatan, u.kelas, per)), icon: 'merge', size: 'lg',
+        body: '<div class="alert info" style="margin-bottom:10px">' + ic('merge') + '<div>Pilih mata kuliah lain yang diampu <b>' + esc(Dom.dosenTeks(u) || '—') + '</b> di pola ' + esc(u.pola) + '. MK yang digabung ditempatkan pada <b>jam yang sama</b> (mis. 08.00–09.20), tidak dihitung bentrok, dan tetap tercetak sebagai mata kuliah masing-masing.' + (sksBeda ? ' Bila SKS berbeda, pertemuan tambahan MK ber-SKS lebih besar dijadwalkan tersendiri.' : '') + '</div></div>' +
+          (sama.length ? '<div class="lbl">Kelas yang sama</div><div class="stack" style="gap:8px;margin-bottom:10px">' + sama.map(kartu).join('') + '</div>' : '') +
+          (lain.length ? '<div class="lbl">Kelas lain (dosen sama)</div><div class="stack" style="gap:8px">' + lain.map(kartu).join('') + '</div>' : '') +
+          (g0 ? '<div class="help" style="margin-top:8px">Hapus centang semua lalu Simpan untuk melepas gabung.</div>' : ''),
+        foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-a="ok">' + ic('merge') + 'Simpan Gabung</button>',
+        acts: { ok: (b, e, m) => { const pilih = $$('input[type=checkbox]:checked', m.el).map(i => i.value); if (!pilih.length && !g0) return toast('Pilih minimal satu mata kuliah.', 'warn'); hasil = pilih; m.close(); } }, onClose: () => res(hasil) });
+    });
+  },
+  /** Susun perubahan Gabung dari pilihan dialog. nilai(x) → {Gabung, Dosen1, Dosen2}. Hasil: [{ID, Gabung, Dosen1?, Dosen2?}] */
+  perubahan(u, pilih, nilai) {
+    const per = App.periode.disusun.key, units = Dom.units(per), v = nilai(u), g0 = v.Gabung || '';
+    const lama = g0 ? units.filter(x => x.id !== u.id && nilai(x).Gabung === g0).map(x => x.id) : [];
+    const set = new Set(pilih);
+    pilih.forEach(id => { const x = units.find(y => y.id === id); const gx = x && nilai(x).Gabung; if (gx && gx !== g0) units.forEach(y => { if (y.id !== u.id && nilai(y).Gabung === gx) set.add(y.id); }); });
+    const out = [];
+    if (!set.size) { [u.id].concat(lama).forEach(id => out.push({ ID: id, Gabung: '' })); return out; }
+    const g = g0 || [...set].map(id => nilai(units.find(y => y.id === id) || u).Gabung).find(Boolean) || 'G' + u.id;
+    out.push({ ID: u.id, Gabung: g });
+    set.forEach(id => out.push({ ID: id, Gabung: g, Dosen1: v.Dosen1 || '', Dosen2: v.Dosen2 || '' }));
+    lama.filter(id => !set.has(id)).forEach(id => out.push({ ID: id, Gabung: '' }));
+    return out;
+  }
+};
+
+/* =====================================================================
    REALISASI KURIKULUM
    ===================================================================== */
 defPage('realisasi', {
@@ -25,6 +67,13 @@ defPage('realisasi', {
   kandidatGabung(u) {
     const um = Dom.units(App.periode.disusun.key), nm = norm(u.kur.NamaMK);
     return um.filter(x => x.id !== u.id && x.pola === u.pola && x.rombel !== u.rombel && x.sks >= 2 && (x.kur.KodeMK === u.kur.KodeMK || norm(x.kur.NamaMK) === nm));
+  },
+  /** (v1.5) Kandidat gabung MK: MK lain (pola sama) yang dosen pengampunya sama persis. val(x) → {Dosen1, Dosen2}. */
+  kandidatDosen(u, val) {
+    val = val || (x => ({ Dosen1: x.r.Dosen1 || '', Dosen2: x.r.Dosen2 || '' }));
+    const v = val(u); if (!v.Dosen1) return [];
+    return Dom.units(App.periode.disusun.key).filter(x => x.id !== u.id && x.pola === u.pola && val(x).Dosen1 === v.Dosen1 && String(val(x).Dosen2 || '') === String(v.Dosen2 || ''))
+      .sort((a, b) => (a.rombel === u.rombel ? 0 : 1) - (b.rombel === u.rombel ? 0 : 1) || Dom.rombelUrut(a, b) || String(a.kur.NamaMK).localeCompare(b.kur.NamaMK));
   },
   render() {
     const s = this.st, d = App.periode.disusun, units = Dom.units(d.key), jg = Dom.jadwalGrid(d.key);
@@ -48,8 +97,12 @@ defPage('realisasi', {
         : '<select class="input sm ' + (v.Dosen1 ? '' : 'err') + '" data-ch="d1" data-id="' + u.id + '">' + optDosen(u.pola, v.Dosen1) + '</select>' + (v.Dosen1 ? hint(v.Dosen1, u.pola) : '<div class="t-sub" style="color:var(--warn)">' + ic('alertc', 'ic-sm') + ' Wajib diisi sebelum Generate Jadwal</div>');
       const atur = (u.sks > 2 ? '<div class="row gap-s" style="flex-wrap:nowrap"><small class="faint">SKS:</small><select class="input sm" data-ch="aturan" data-id="' + u.id + '"><option value="BERTURUT"' + (v.AturanSKS !== 'BEDA' ? ' selected' : '') + '>Berturut-turut (1 hari / ' + u.sks + ' SKS)</option><option value="BEDA"' + (v.AturanSKS === 'BEDA' ? ' selected' : '') + '>Beda hari (' + (u.sks - u.sks % 2 || 2) + ' SKS + ' + (u.sks % 2 || 2) + ' SKS)</option></select></div>' : '<div class="t-sub">' + u.sks + ' SKS (' + u.bagian + '× pertemuan)</div>') +
         (u.sks >= 2 ? '<div style="margin-top:6px"><label class="chk" style="font-size:12.5px"><input type="checkbox" data-ch="gab" data-id="' + u.id + '" ' + (v.Gabung ? 'checked' : '') + (kand.length || v.Gabung ? '' : ' disabled title="Tidak ada kelas lain dengan MK yang sama di pola ini"') + '> Gabung kelas</label>' +
-          (v.Gabung ? '<div class="t-sub">' + ic('merge', 'ic-sm') + ' dengan ' + esc(grupAng.map(x => x.prodi + '-' + x.smt + ' ' + x.kelas).join(', ') || '—') + '</div>' : '') + '</div>' : '');
-      const stt = perm(u) ? '<span class="badge navy">' + ic('lock', 'ic-sm') + 'Terkunci</span>' : v.Gabung ? '<span class="badge orange">' + ic('merge', 'ic-sm') + 'Kelas Gabungan</span>' : v.Dosen1 ? '<span class="badge ok dot">Lengkap</span>' : '<span class="badge warn dot">Belum Ada Dosen</span>';
+          (v.Gabung ? '<div class="t-sub">' + ic('merge', 'ic-sm') + ' dengan ' + esc(grupAng.map(x => GabungMK.label(x, u)).join(', ') || '—') + '</div>' : '') + '</div>' : '') +
+        (u.sks < 2 && v.Gabung ? '<div class="t-sub" style="margin-top:6px">' + ic('merge', 'ic-sm') + ' digabung dengan ' + esc(grupAng.map(x => GabungMK.label(x, u)).join(', ') || '—') + '</div>' : '') +
+        '<div style="margin-top:4px"><button class="link-btn gmk-btn" data-a="gabMK" data-id="' + attr(u.id) + '"' + (v.Dosen1 ? ' title="Gabungkan dengan MK lain (boleh beda nama) yang diampu dosen yang sama dalam satu waktu"' : ' disabled title="Isi dosen pengampu terlebih dahulu"') + '>' + ic('merge', 'ic-sm') + (v.Gabung && GabungMK.campur([u].concat(grupAng)) ? 'Atur gabung MK…' : 'Gabung MK (dosen sama)…') + '</button></div>';
+      const campur = v.Gabung && GabungMK.campur([u].concat(grupAng));
+      const bGab = '<span class="badge orange">' + ic('merge', 'ic-sm') + (campur ? 'MK Gabungan' : 'Kelas Gabungan') + '</span>';
+      const stt = perm(u) ? '<span class="badge navy">' + ic('lock', 'ic-sm') + 'Terkunci</span>' + (v.Gabung ? '<div style="margin-top:4px">' + bGab + '</div>' : '') : v.Gabung ? bGab : v.Dosen1 ? '<span class="badge ok dot">Lengkap</span>' : '<span class="badge warn dot">Belum Ada Dosen</span>';
       return '<tr class="' + (kotor ? 'kotor' : '') + (v.Dosen1 ? '' : ' warn') + '"><td class="num">' + String((s.hal - 1) * s.per + i + 1).padStart(2, '0') + '</td><td class="nowrap">' + dotProdi(u.prodi) + ' ' + esc(u.prodi) + '</td><td>' + badgeKelas(u.kelas) + '</td><td>' + esc(u.angkatan) + '</td><td class="center"><b>' + u.smt + '</b></td>' +
         '<td class="mono">' + esc(u.kur.KodeMK) + '</td><td style="min-width:210px"><b>' + esc(u.kur.NamaMK) + '</b>' + (u.tahfidz ? ' <span class="badge orange sq">Tahfidz (2 Dosen)</span>' : '') + (u.kur.NamaArab ? '<div class="arab muted" style="font-size:13px">' + esc(u.kur.NamaArab) + '</div>' : '') + '<div class="t-sub">Pola ' + esc(u.pola) + (terjadwal(u) ? ' · ' + esc(Dom.hariJam(u.id, d.key, u.pola)) : ' · <span style="color:var(--warn)">belum terjadwal</span>') + '</div></td>' +
         '<td class="center"><b>' + u.sks + '</b></td><td style="min-width:260px">' + dosenCell + '</td><td style="min-width:230px">' + atur + '</td><td>' + stt + (kotor ? '<div style="margin-top:4px"><span class="badge orange">Belum disimpan</span></div>' : '') + '</td></tr>';
@@ -80,6 +133,14 @@ defPage('realisasi', {
     hapusF(b) { this.st[b.dataset.v] = ''; this.st.hal = 1; this.render(); },
     resetF() { Object.assign(this.st, { prodi: '', angkatan: '', kelas: '', status: '', q: '', hal: 1 }); this.render(); },
     simpan(b) { this.simpan(b); },
+    async gabMK(b) {
+      const u = Dom.unitMap(App.periode.disusun.key).get(b.dataset.id); if (!u) return;
+      const val = x => this.nilai(x), kand = this.kandidatDosen(u, val);
+      if (!kand.length && !val(u).Gabung) return toast('Tidak ada mata kuliah lain yang diampu ' + (Dom.dosenNama(val(u).Dosen1) || 'dosen ini') + ' di pola ' + u.pola + '.', 'warn');
+      const pilih = await GabungMK.dialog(u, kand, x => val(x).Gabung, val(u).Gabung); if (pilih === null) return;
+      GabungMK.perubahan(u, pilih, val).forEach(p => { const id = p.ID; delete p.ID; this.ubah(id, p); });
+      this.render(); toast(pilih.length ? 'Gabung MK disiapkan. Tekan Simpan Realisasi Kurikulum.' : 'Gabung dilepas. Tekan Simpan Realisasi Kurikulum.', 'info');
+    },
     async salin(b) {
       const r = await denganSibuk(b, 'Mencari…', () => api('realisasi.salinLalu', {}));
       if (!r.success) return;
@@ -212,7 +273,7 @@ const GridJ = {
   tabel(cfg) {
     const slots = cfg.filterHari ? cfg.slots.filter(s => s.hari === cfg.filterHari) : cfg.slots, hari = [...new Set(slots.map(s => s.hari))];
     const akhirHari = new Set(); hari.forEach(h => { const l = slots.filter(s => s.hari === h); akhirHari.add(l[l.length - 1].key); });
-    let h = '<table class="sg ' + (cfg.kelas || '') + '"><thead><tr><th class="rh" rowspan="2">KELAS / ROMBEL</th>' + hari.map(x => '<th colspan="' + slots.filter(s => s.hari === x).length + '">' + x + '</th>').join('') + '</tr><tr>' +
+    let h = '<table class="sg sg-fix ' + (cfg.kelas || '') + '" style="--n:' + Math.max(1, slots.length) + '"><thead><tr><th class="rh" rowspan="2">KELAS / ROMBEL</th>' + hari.map(x => '<th colspan="' + slots.filter(s => s.hari === x).length + '">' + x + '</th>').join('') + '</tr><tr>' +
       slots.map(s => '<th>S' + s.sesi + '<small>' + s.mulai + '–' + s.selesai + '</small></th>').join('') + '</tr></thead><tbody>';
     cfg.rombel.forEach(rb => {
       h += '<tr><td class="rh"><div class="rb" style="--c:' + attr(rb.warna) + '"><b>' + esc(rb.label) + '</b><small>' + esc(rb.sub || '') + '</small></div></td>' +
@@ -298,7 +359,7 @@ defPage('jadwal', {
     const anggota = u.gabung ? Dom.units(App.periode.disusun.key).filter(y => y.gabung === u.gabung && y.id !== u.id) : [];
     return '<div class="sgc' + (u.gabung ? ' gab' : '') + (bentrok ? ' konflik' : m.length ? ' warn' : '') + '" data-k="' + attr(x.k) + '" style="--dc:' + Dom.warnaDosen(u.dosen[0]) + '" title="' + attr(u.kur.KodeMK + ' · ' + u.kur.NamaMK + '\n' + (Dom.dosenTeks(u) || 'Belum ada dosen') + (m.length ? '\n⚠ ' + m.join('\n⚠ ') : '')) + '">' +
       (x.kunci ? '<span class="lock">' + ic('lock', 'ic-sm') + '</span>' : '') + '<div class="top"><span class="sks">' + sksBag + ' SKS</span>' + (u.bagian > 1 ? '<span class="sks" style="background:var(--surface-3);color:var(--text-2)">' + x.b + '/' + u.bagian + '</span>' : '') +
-      (u.gabung ? '<span class="flag gb" title="Gabung dengan ' + attr(anggota.map(y => y.prodi + ' ' + y.kelas).join(', ')) + '">Gabung</span>' : '') + (u.tahfidz ? '<span class="flag th">Tahfidz</span>' : '') + '</div>' +
+      (u.gabung ? '<span class="flag gb" title="Gabung dengan ' + attr(anggota.map(y => GabungMK.label(y, u)).join(', ')) + '">' + (GabungMK.campur([u].concat(anggota)) ? 'Gabung MK' : 'Gabung') + '</span>' : '') + (u.tahfidz ? '<span class="flag th">Tahfidz</span>' : '') + '</div>' +
       '<div class="mk">' + esc(u.kur.NamaMK) + '</div><div class="ds">' + (u.dosen.length ? esc(u.dosen.map(d => Dom.namaPendek(Dom.dosenNama(d))).join(' & ')) : '<span style="color:var(--err)">Belum ada dosen</span>') + '</div>' +
       (m.length ? '<div class="why">⚠ ' + esc(m[0]) + '</div>' : '') + (x.posisi !== 'GRID' && this.w().alasan[x.k] ? '<div class="why">' + esc(this.w().alasan[x.k]) + '</div>' : '') + '</div>';
   },
@@ -325,9 +386,11 @@ defPage('jadwal', {
     if (t.luar) { [it].concat(anggota).forEach(x => pindah(x, '', '', 'LUAR')); }
     else {
       const [hari, sesi] = t.slot.split('|');
+      const grupK = new Set([it].concat(anggota).map(x => x.k));
       for (const x of [it].concat(anggota)) {
         const ux = um.get(x.uid);
-        const occ = [...w.map.values()].filter(y => y.posisi === 'GRID' && y.k !== x.k && y.hari === hari && String(y.sesi) === sesi && (um.get(y.uid) || {}).rombel === ux.rombel);
+        /* (v1.5) anggota grup (gabung MK di kelas yang sama) tidak saling menukar */
+        const occ = [...w.map.values()].filter(y => y.posisi === 'GRID' && !grupK.has(y.k) && y.hari === hari && String(y.sesi) === sesi && (um.get(y.uid) || {}).rombel === ux.rombel);
         if (occ.some(y => y.kunci)) { toast('Kelas ' + ux.prodi + ' ' + ux.kelas + ' memiliki kartu terkunci di slot itu.', 'warn'); return; }
         const lama = pindah(x, hari, sesi, 'GRID');
         occ.forEach(y => { if (lama.posisi === 'GRID') pindah(y, lama.hari, lama.sesi, 'GRID'); else pindah(y, '', '', 'LUAR'); });
@@ -339,6 +402,7 @@ defPage('jadwal', {
     const per = App.periode.disusun.key, u = Dom.unitMap(per).get(it.uid); if (!u) return;
     const items = [{ head: u.kur.KodeMK + ' · ' + u.kur.NamaMK }, { label: u.tahfidz ? 'Ganti dosen (2 dosen tahfidz)…' : 'Ganti dosen…', icon: 'user', fn: () => this.gantiDosen(u) },
       { label: u.gabung ? 'Atur gabung kelas…' : 'Gabung dengan kelas lain…', icon: 'merge', fn: () => this.gabung(u, it), dis: u.sks < 2 },
+      { label: u.gabung && GabungMK.campur(Dom.units(per).filter(y => y.gabung === u.gabung)) ? 'Atur gabung MK (dosen sama)…' : 'Gabung MK lain · dosen sama…', icon: 'merge', fn: () => this.gabungMK(u, it), dis: !u.dosen.length },
       u.gabung ? { label: 'Lepas gabung', icon: 'x', fn: () => this.lepasGabung(u) } : null,
       { sep: true }, { label: it.kunci ? 'Buka kunci posisi' : 'Kunci posisi', icon: it.kunci ? 'unlock' : 'lock', fn: () => { it.kunci = !it.kunci; if (it.posisi !== 'GRID') it.kunci = false; this.w().kotor = true; this.render(); }, dis: it.posisi !== 'GRID' },
       { label: 'Pindahkan ke luar grid', icon: 'arrowl', fn: () => { if (it.kunci) return toast('Buka kunci terlebih dahulu.', 'info'); this.jatuh(it, { luar: true }); }, dis: it.posisi !== 'GRID' },
@@ -378,6 +442,17 @@ defPage('jadwal', {
         m.close();
         if (it.posisi === 'GRID') this.jatuh(it, { rb: u.rombel, slot: it.hari + '|' + it.sesi });
       } } });
+  },
+  /** (v1.5) Gabung MK berbeda nama yang diampu dosen sama → satu waktu; kartu anggota ditarik ke slot kartu ini. */
+  async gabungMK(u, it) {
+    const val = x => ({ Gabung: x.gabung || '', Dosen1: x.r.Dosen1 || '', Dosen2: x.r.Dosen2 || '' }), kand = Pages.realisasi.kandidatDosen(u);
+    if (!kand.length && !u.gabung) return toast('Tidak ada mata kuliah lain yang diampu ' + (Dom.dosenTeks(u) || 'dosen ini') + ' di pola ' + u.pola + '.', 'warn');
+    const pilih = await GabungMK.dialog(u, kand, x => x.gabung, u.gabung); if (pilih === null) return;
+    const ubah = GabungMK.perubahan(u, pilih, val);
+    const r = await this.simpanRealisasi(ubah, pilih.length ? 'MK digabung dalam satu waktu & tersinkron ke Realisasi Kurikulum.' : 'Gabung dilepas.');
+    if (!r.success || !pilih.length) return;
+    const w = this.w(), cur = w.map.get(it.k) || it;
+    if (cur.posisi === 'GRID') this.jatuh(cur, { rb: u.rombel, slot: cur.hari + '|' + cur.sesi });
   },
   async lepasGabung(u) {
     const ang = Dom.units(App.periode.disusun.key).filter(x => x.gabung === u.gabung);
